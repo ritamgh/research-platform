@@ -25,3 +25,105 @@ def _chunk_text(text: str, chunk_size: int, overlap: int) -> list[str]:
         chunks.append(text[start:start + chunk_size])
         start += chunk_size - overlap
     return chunks
+
+
+def _get_qdrant_client() -> AsyncQdrantClient:
+    url = os.environ.get("QDRANT_URL", "")
+    if not url:
+        raise McpError(ErrorData(code=INTERNAL_ERROR, message="QDRANT_URL environment variable is not set"))
+    return AsyncQdrantClient(url=url)
+
+
+async def _get_embedding(text: str) -> list[float]:
+    api_key = os.environ.get("OPENAI_API_KEY", "")
+    if not api_key:
+        raise McpError(ErrorData(code=INTERNAL_ERROR, message="OPENAI_API_KEY environment variable is not set"))
+    client = AsyncOpenAI(api_key=api_key)
+    last_error = "unknown error"
+    for attempt in range(3):
+        if attempt > 0:
+            await asyncio.sleep(BACKOFF_DELAYS[attempt - 1])
+        try:
+            response = await client.embeddings.create(model=EMBEDDING_MODEL, input=text)
+            return response.data[0].embedding
+        except OpenAIAuthError:
+            raise McpError(ErrorData(code=INVALID_REQUEST, message="OpenAI authentication failed (401)"))
+        except Exception as e:
+            last_error = str(e)
+            continue
+    raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"OpenAI embedding failed after 3 attempts: {last_error}"))
+
+
+@mcp.tool
+async def ingest_document(
+    title: str,
+    content: str,
+    url: str,
+    collection: str = "documents",
+    chunk_size: int = 1000,
+    overlap: int = 200,
+) -> str:
+    """Chunk a document and ingest it into the vector database."""
+    if not title or not title.strip():
+        raise McpError(ErrorData(code=INVALID_PARAMS, message="title must not be empty"))
+    if not content or not content.strip():
+        raise McpError(ErrorData(code=INVALID_PARAMS, message="content must not be empty"))
+    if not url or not url.strip():
+        raise McpError(ErrorData(code=INVALID_PARAMS, message="url must not be empty"))
+    if not collection or not collection.strip():
+        raise McpError(ErrorData(code=INVALID_PARAMS, message="collection must not be empty"))
+    if not 1 <= chunk_size <= 5000:
+        raise McpError(ErrorData(code=INVALID_PARAMS, message="chunk_size must be between 1 and 5000"))
+    if not 0 <= overlap <= 500:
+        raise McpError(ErrorData(code=INVALID_PARAMS, message="overlap must be between 0 and 500"))
+    if overlap >= chunk_size:
+        raise McpError(ErrorData(code=INVALID_PARAMS, message="overlap must be less than chunk_size"))
+
+    qdrant = _get_qdrant_client()
+    document_id = str(uuid.uuid4())
+    chunks = _chunk_text(content, chunk_size, overlap)
+
+    embeddings = []
+    for chunk in chunks:
+        embeddings.append(await _get_embedding(chunk))
+
+    if not await qdrant.collection_exists(collection):
+        await qdrant.create_collection(
+            collection,
+            vectors_config=VectorParams(size=EMBEDDING_DIM, distance=Distance.COSINE),
+        )
+
+    points = [
+        PointStruct(
+            id=str(uuid.uuid4()),
+            vector=embeddings[i],
+            payload={
+                "document_id": document_id,
+                "title": title,
+                "url": url,
+                "content": chunks[i],
+                "chunk_index": i,
+            },
+        )
+        for i in range(len(chunks))
+    ]
+
+    last_error = "unknown error"
+    for attempt in range(3):
+        if attempt > 0:
+            await asyncio.sleep(BACKOFF_DELAYS[attempt - 1])
+        try:
+            await qdrant.upsert(collection_name=collection, points=points)
+            break
+        except Exception as e:
+            last_error = str(e)
+            continue
+    else:
+        raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"Qdrant upsert failed after 3 attempts: {last_error}"))
+
+    return json.dumps({
+        "collection": collection,
+        "document_id": document_id,
+        "chunks_stored": len(chunks),
+        "title": title,
+    })
