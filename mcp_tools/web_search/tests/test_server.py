@@ -247,6 +247,19 @@ async def test_num_results_ten_is_valid(mcp_server):
 
 
 @pytest.mark.asyncio
+async def test_empty_query_raises_without_tavily_call(mcp_server):
+    """Empty or blank query raises ToolError before any Tavily request."""
+    with patch.dict(os.environ, {"TAVILY_API_KEY": "test-key"}):
+        async with respx.mock:
+            route = respx.post("https://api.tavily.com/search")
+            async with Client(mcp_server) as client:
+                with pytest.raises(ToolError):
+                    await client.call_tool("search_web", {"query": ""})
+
+    assert route.call_count == 0  # Tavily was never called
+
+
+@pytest.mark.asyncio
 async def test_results_with_null_url_are_filtered(mcp_server):
     """Results where url is null are excluded from the response."""
     response = {

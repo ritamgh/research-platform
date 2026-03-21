@@ -66,6 +66,9 @@ async def search_web(
     if not 1 <= num_results <= 10:
         raise McpError(ErrorData(code=INVALID_PARAMS, message="num_results must be between 1 and 10 (inclusive)"))
 
+    if not query or not query.strip():
+        raise McpError(ErrorData(code=INVALID_PARAMS, message="query must not be empty"))
+
     payload = {
         "query": query,
         "max_results": num_results,
