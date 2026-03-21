@@ -309,3 +309,21 @@ async def test_qdrant_upsert_recovers_on_third_attempt(mcp_server):
     assert mock_qdrant.upsert.call_count == 3
     data = json.loads(result.content[0].text)
     assert "document_id" in data
+
+
+@pytest.mark.asyncio
+async def test_ingest_collection_param_routes_to_correct_collection(mcp_server):
+    """The collection parameter is used for collection_exists and upsert calls."""
+    mock_qdrant = _mock_qdrant(collection_exists=True)
+    with patch.dict(os.environ, {"QDRANT_URL": "http://localhost:6333", "OPENAI_API_KEY": "test-key"}):
+        with patch("mcp_tools.vector_db.server.AsyncQdrantClient", return_value=mock_qdrant):
+            with patch("mcp_tools.vector_db.server.AsyncOpenAI", return_value=_mock_openai()):
+                async with Client(mcp_server) as client:
+                    await client.call_tool("ingest_document", {
+                        "title": "T", "content": "Content", "url": "https://x.com",
+                        "collection": "my_research",
+                    })
+
+    mock_qdrant.collection_exists.assert_called_once_with("my_research")
+    mock_qdrant.upsert.assert_called_once()
+    assert mock_qdrant.upsert.call_args.kwargs["collection_name"] == "my_research"

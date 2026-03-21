@@ -19,6 +19,8 @@ EMBEDDING_DIM = 1536
 
 
 def _chunk_text(text: str, chunk_size: int, overlap: int) -> list[str]:
+    if chunk_size <= 0 or overlap >= chunk_size:
+        raise ValueError(f"Invalid chunking params: chunk_size={chunk_size}, overlap={overlap}")
     chunks = []
     start = 0
     while start < len(text):
