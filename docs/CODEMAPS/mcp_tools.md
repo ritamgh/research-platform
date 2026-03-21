@@ -1,4 +1,4 @@
-<!-- Generated: 2026-03-21 | Files scanned: 8 | Token estimate: ~350 -->
+<!-- Generated: 2026-03-22 | Files scanned: 12 | Token estimate: ~480 -->
 
 # MCP Tool Servers
 
@@ -62,18 +62,22 @@ server.py →  FastMCP("vector-db-tool")
 
 **Env vars:** `QDRANT_URL` (required), `OPENAI_API_KEY` (required)
 
+---
+
 ## file_reader ✅ (port 9003)
 
 ```
-main.py  →  load_dotenv() → mcp.run(transport="http", port=9003)
+main.py  →  load_dotenv() → mcp.run(transport="http", host="0.0.0.0", port=9003)
 server.py →  FastMCP("file-reader-tool")
               └── read_file(source, start_page=1, end_page=None) → str (JSON)
                     ├── validate: source non-empty, not http://, start_page ≥ 1, end_page ≥ start_page
                     ├── _detect_file_type(source) — .pdf → pdf; .txt/.md → text; no-ext URL → text; else INVALID_PARAMS
+                    ├── local path: _check_path_allowed(source) — if FILE_READER_BASE_DIR set, reject traversal outside it
                     ├── _read_local(path) → bytes via asyncio.to_thread — FileNotFoundError/PermissionError → INVALID_PARAMS
                     ├── _fetch_remote(url) → bytes — RETRYABLE_STATUS {429,500,502,503,504}, 3 attempts, backoff [1s,2s]
                     ├── PDF path: asyncio.to_thread(_parse_pdf) → page_count, get_text(), metadata{title,author}
-                    │     end_page clamped to page_count; pages_read: "N" or "start-end" from resolved values
+                    │     ├── end_page clamped to page_count; pages_read: "N" or "start-end" from resolved values
+                    │     └── doc.close() called in finally block (explicit resource release)
                     └── text path: bytes.decode("utf-8", errors="replace") → null metadata
 ```
 
@@ -83,13 +87,13 @@ server.py →  FastMCP("file-reader-tool")
 ```
 
 **Key files:**
-- `mcp_tools/file_reader/server.py` — tool logic (~140 lines)
-- `mcp_tools/file_reader/main.py` — entrypoint, port 9003
+- `mcp_tools/file_reader/server.py` — tool logic, path allowlist, PDF parsing (~193 lines)
+- `mcp_tools/file_reader/main.py` — entrypoint, binds to 0.0.0.0:9003
 - `mcp_tools/file_reader/tests/test_server.py` — 24 unit tests
 - `mcp_tools/file_reader/tests/test_integration.py` — 1 integration test (no env vars required)
 - `mcp_tools/file_reader/tests/fixtures/sample.pdf` — bundled 2-page test fixture
 
-**Env vars:** None required
+**Env vars:** `FILE_READER_BASE_DIR` (optional — restricts local path access to a subtree)
 
 ---
 

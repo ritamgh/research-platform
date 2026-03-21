@@ -1,4 +1,4 @@
-<!-- Generated: 2026-03-21 | Files scanned: 8 | Token estimate: ~400 -->
+<!-- Generated: 2026-03-22 | Files scanned: 12 | Token estimate: ~380 -->
 
 # Architecture
 
@@ -25,7 +25,7 @@ Orchestrator (LangGraph) ──── A2A Protocol ────► Web Research 
                                               LangSmith (traces + evals)
 ```
 
-## Build Status (Week 1 of 4)
+## Build Status (Week 1 of 4 — complete)
 
 | Component | Status | Port |
 |---|---|---|
@@ -37,6 +37,10 @@ Orchestrator (LangGraph) ──── A2A Protocol ────► Web Research 
 | `agents/rag` | ⬜ Planned | 8002 |
 | `agents/summariser` | ⬜ Planned | 8003 |
 | `orchestrator` | ⬜ Planned | 8000 |
+
+All three Week 1 MCP tool servers are now complete. The most recent change to
+`file_reader` added an optional path allowlist (`FILE_READER_BASE_DIR`), explicit
+`fitz.Document.close()` in a finally block, and bound the server to `0.0.0.0`.
 
 ## Key Protocols
 

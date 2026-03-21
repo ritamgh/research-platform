@@ -1,0 +1,42 @@
+Codemap Diff Report
+Generated: 2026-03-22
+Previous update: 2026-03-21
+
+=== New Tools Added ===
+None. All three Week 1 tools (web_search, vector_db, file_reader) were already
+documented as of 2026-03-21.
+
+=== Changes Since Last Update ===
+
+mcp_tools/file_reader — two fixes landed in commit 121e517:
+
+1. Path allowlist added (_check_path_allowed)
+   - New env var: FILE_READER_BASE_DIR (optional)
+   - When set, local path access is restricted to that subtree
+   - Raises INVALID_PARAMS on directory traversal attempts
+   - Documented in mcp_tools.md and dependencies.md
+
+2. Explicit fitz.Document.close() in finally block
+   - Prevents file descriptor leak on large or malformed PDFs
+   - No API change; internal resource management only
+
+3. Server now binds to host="0.0.0.0" (previously default / localhost)
+   - Noted in architecture.md and mcp_tools.md
+   - Relevant for container / proxy deployments
+
+dependencies.md:
+- Added file_reader requirements block (fastmcp, pymupdf, httpx, python-dotenv,
+  pytest, pytest-asyncio, respx)
+- Corrected openai pin to >=1.0 (was >=1.30, which does not match requirements.txt)
+
+architecture.md:
+- Updated "Build Status" heading to clarify Week 1 is complete
+
+=== Current Tool Status ===
+  web_search      ✅ Built (port 9001)
+  vector_db       ✅ Built (port 9002)
+  file_reader     ✅ Built (port 9003)
+  citation_checker ⬜ Planned (port 9004)
+
+=== Week 2–4 Components (all still planned) ===
+  agents/web_research, agents/rag, agents/summariser, orchestrator, LangSmith evals
