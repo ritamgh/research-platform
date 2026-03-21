@@ -48,10 +48,12 @@ def _detect_file_type(source: str) -> str:
 
 
 async def _read_local(path: str) -> bytes:
-    """Read a local file as bytes. Raises McpError on I/O failures."""
-    try:
+    """Read a local file as bytes using a thread to avoid blocking the event loop."""
+    def _read() -> bytes:
         with open(path, "rb") as f:
             return f.read()
+    try:
+        return await asyncio.to_thread(_read)
     except FileNotFoundError:
         raise McpError(ErrorData(code=INVALID_PARAMS, message=f"File not found: {path}"))
     except PermissionError:
@@ -119,32 +121,39 @@ async def read_file(
         data = await _read_local(source)
 
     if file_type == "pdf":
+        def _parse_pdf() -> dict:
+            try:
+                doc = fitz.open(stream=data, filetype="pdf")
+            except Exception as e:
+                raise RuntimeError(f"Failed to parse PDF: {e}")
+            page_count = doc.page_count
+            if start_page > page_count:
+                raise ValueError(f"start_page ({start_page}) exceeds page count ({page_count})")
+            resolved_end = min(end_page, page_count) if end_page is not None else page_count
+            text = "\n".join(doc[i].get_text() for i in range(start_page - 1, resolved_end))
+            raw_meta = doc.metadata
+            return {
+                "page_count": page_count,
+                "text": text,
+                "title": raw_meta.get("title") or None,  # coerce "" to None
+                "author": raw_meta.get("author") or None,
+                "pages_read": str(start_page) if start_page == resolved_end else f"{start_page}-{resolved_end}",
+            }
+
         try:
-            doc = fitz.open(stream=data, filetype="pdf")
-        except Exception as e:
-            raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"Failed to parse PDF: {e}"))
-
-        page_count = doc.page_count
-        if start_page > page_count:
-            raise McpError(ErrorData(
-                code=INVALID_PARAMS,
-                message=f"start_page ({start_page}) exceeds page count ({page_count})",
-            ))
-
-        resolved_end = min(end_page, page_count) if end_page is not None else page_count
-        text = "\n".join(doc[i].get_text() for i in range(start_page - 1, resolved_end))
-
-        raw_meta = doc.metadata
-        title = raw_meta.get("title") or None
-        author = raw_meta.get("author") or None
-        pages_read = str(start_page) if start_page == resolved_end else f"{start_page}-{resolved_end}"
+            pdf_result = await asyncio.to_thread(_parse_pdf)
+        except ValueError as e:
+            raise McpError(ErrorData(code=INVALID_PARAMS, message=str(e)))
+        except RuntimeError as e:
+            raise McpError(ErrorData(code=INTERNAL_ERROR, message=str(e)))
 
         metadata = {
-            "title": title,
-            "author": author,
-            "page_count": page_count,
-            "pages_read": pages_read,
+            "title": pdf_result["title"],
+            "author": pdf_result["author"],
+            "page_count": pdf_result["page_count"],
+            "pages_read": pdf_result["pages_read"],
         }
+        text = pdf_result["text"]
     else:
         text = data.decode("utf-8", errors="replace")
         metadata = {
