@@ -47,8 +47,10 @@ async def _call_tavily(payload: dict) -> dict:
                 return resp.json()
             except McpError:
                 raise
+            except httpx.HTTPStatusError as e:
+                raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"Unexpected Tavily response: HTTP {e.response.status_code}"))
             except (httpx.TimeoutException, httpx.ConnectError) as e:
-                last_error = str(e)
+                last_error = f"{type(e).__name__}: {e}"
                 continue
     raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"Tavily request failed after 3 attempts: {last_error}"))
 

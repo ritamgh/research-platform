@@ -15,7 +15,7 @@ def mcp_server():
 @pytest.mark.asyncio
 async def test_missing_api_key_raises_mcp_error(mcp_server):
     """search_web raises ToolError when TAVILY_API_KEY is not set."""
-    with patch.dict(os.environ, {}, clear=True):
+    with patch.dict(os.environ, {"TAVILY_API_KEY": ""}):
         async with Client(mcp_server) as client:
             with pytest.raises(ToolError):
                 await client.call_tool("search_web", {"query": "test"})
