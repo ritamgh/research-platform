@@ -17,6 +17,23 @@ RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 BACKOFF_DELAYS = [1, 2]
 
 
+def _check_path_allowed(path: str) -> None:
+    """If FILE_READER_BASE_DIR is set, verify the path stays within it."""
+    base_dir = os.environ.get("FILE_READER_BASE_DIR", "")
+    if not base_dir:
+        return  # no restriction configured
+    import pathlib
+    allowed = pathlib.Path(base_dir).resolve()
+    resolved = pathlib.Path(path).resolve()
+    try:
+        resolved.relative_to(allowed)
+    except ValueError:
+        raise McpError(ErrorData(
+            code=INVALID_PARAMS,
+            message=f"Path is outside the allowed base directory ({allowed})",
+        ))
+
+
 def _detect_file_type(source: str) -> str:
     """Return 'pdf' or 'text' based on file extension. Raises McpError for unsupported types."""
     is_url = source.startswith("https://")
@@ -118,6 +135,7 @@ async def read_file(
     if source.startswith("https://"):
         data = await _fetch_remote(source)
     else:
+        _check_path_allowed(source)  # <-- add this line
         data = await _read_local(source)
 
     if file_type == "pdf":
@@ -126,19 +144,22 @@ async def read_file(
                 doc = fitz.open(stream=data, filetype="pdf")
             except Exception as e:
                 raise RuntimeError(f"Failed to parse PDF: {e}")
-            page_count = doc.page_count
-            if start_page > page_count:
-                raise ValueError(f"start_page ({start_page}) exceeds page count ({page_count})")
-            resolved_end = min(end_page, page_count) if end_page is not None else page_count
-            text = "\n".join(doc[i].get_text() for i in range(start_page - 1, resolved_end))
-            raw_meta = doc.metadata
-            return {
-                "page_count": page_count,
-                "text": text,
-                "title": raw_meta.get("title") or None,  # coerce "" to None
-                "author": raw_meta.get("author") or None,
-                "pages_read": str(start_page) if start_page == resolved_end else f"{start_page}-{resolved_end}",
-            }
+            try:
+                page_count = doc.page_count
+                if start_page > page_count:
+                    raise ValueError(f"start_page ({start_page}) exceeds page count ({page_count})")
+                resolved_end = min(end_page, page_count) if end_page is not None else page_count
+                text = "\n".join(doc[i].get_text() for i in range(start_page - 1, resolved_end))
+                raw_meta = doc.metadata
+                return {
+                    "page_count": page_count,
+                    "text": text,
+                    "title": raw_meta.get("title") or None,  # coerce "" to None
+                    "author": raw_meta.get("author") or None,
+                    "pages_read": str(start_page) if start_page == resolved_end else f"{start_page}-{resolved_end}",
+                }
+            finally:
+                doc.close()
 
         try:
             pdf_result = await asyncio.to_thread(_parse_pdf)
