@@ -157,11 +157,12 @@ async def search_documents(
         if attempt > 0:
             await asyncio.sleep(BACKOFF_DELAYS[attempt - 1])
         try:
-            results = await qdrant.search(
+            response = await qdrant.query_points(
                 collection_name=collection,
-                query_vector=query_vector,
+                query=query_vector,
                 limit=num_results,
             )
+            results = response.points
             break
         except Exception as e:
             last_error = str(e)

@@ -65,7 +65,9 @@ def _mock_qdrant(collection_exists=True):
     mock.collection_exists = AsyncMock(return_value=collection_exists)
     mock.create_collection = AsyncMock(return_value=None)
     mock.upsert = AsyncMock(return_value=None)
-    mock.search = AsyncMock(return_value=[])
+    mock_response = MagicMock()
+    mock_response.points = []
+    mock.query_points = AsyncMock(return_value=mock_response)
     return mock
 
 
@@ -339,7 +341,9 @@ async def test_successful_search_returns_correct_shape(mcp_server):
     mock_hit.score = 0.92
 
     mock_qdrant = _mock_qdrant(collection_exists=True)
-    mock_qdrant.search = AsyncMock(return_value=[mock_hit])
+    mock_response = MagicMock()
+    mock_response.points = [mock_hit]
+    mock_qdrant.query_points = AsyncMock(return_value=mock_response)
 
     with patch.dict(os.environ, {"QDRANT_URL": "http://localhost:6333", "OPENAI_API_KEY": "test-key"}):
         with patch("mcp_tools.vector_db.server.AsyncQdrantClient", return_value=mock_qdrant):
@@ -429,7 +433,7 @@ async def test_search_missing_collection_raises_immediately(mcp_server):
                     with pytest.raises(ToolError):
                         await client.call_tool("search_documents", {"query": "test"})
 
-    mock_qdrant.search.assert_not_called()
+    mock_qdrant.query_points.assert_not_called()
     mock_openai_client.embeddings.create.assert_not_called()
 
 
@@ -446,8 +450,8 @@ async def test_collection_param_routes_to_correct_collection(mcp_server):
                         "query": "test", "collection": "my_research"
                     })
 
-    mock_qdrant.search.assert_called_once()
-    assert mock_qdrant.search.call_args.kwargs["collection_name"] == "my_research"
+    mock_qdrant.query_points.assert_called_once()
+    assert mock_qdrant.query_points.call_args.kwargs["collection_name"] == "my_research"
 
 
 @pytest.mark.asyncio
@@ -463,5 +467,5 @@ async def test_num_results_forwarded_as_limit_to_qdrant(mcp_server):
                         "query": "test", "num_results": 3
                     })
 
-    mock_qdrant.search.assert_called_once()
-    assert mock_qdrant.search.call_args.kwargs["limit"] == 3
+    mock_qdrant.query_points.assert_called_once()
+    assert mock_qdrant.query_points.call_args.kwargs["limit"] == 3
