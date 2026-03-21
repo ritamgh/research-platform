@@ -62,8 +62,36 @@ server.py →  FastMCP("vector-db-tool")
 
 **Env vars:** `QDRANT_URL` (required), `OPENAI_API_KEY` (required)
 
-## file_reader ⬜ (port 9003)
-Tools: PDF/text parsing — wraps PyMuPDF
+## file_reader ✅ (port 9003)
+
+```
+main.py  →  load_dotenv() → mcp.run(transport="http", port=9003)
+server.py →  FastMCP("file-reader-tool")
+              └── read_file(source, start_page=1, end_page=None) → str (JSON)
+                    ├── validate: source non-empty, not http://, start_page ≥ 1, end_page ≥ start_page
+                    ├── _detect_file_type(source) — .pdf → pdf; .txt/.md → text; no-ext URL → text; else INVALID_PARAMS
+                    ├── _read_local(path) → bytes via asyncio.to_thread — FileNotFoundError/PermissionError → INVALID_PARAMS
+                    ├── _fetch_remote(url) → bytes — RETRYABLE_STATUS {429,500,502,503,504}, 3 attempts, backoff [1s,2s]
+                    ├── PDF path: asyncio.to_thread(_parse_pdf) → page_count, get_text(), metadata{title,author}
+                    │     end_page clamped to page_count; pages_read: "N" or "start-end" from resolved values
+                    └── text path: bytes.decode("utf-8", errors="replace") → null metadata
+```
+
+**Response shape:**
+```json
+{"source": "...", "file_type": "pdf|text", "text": "...", "metadata": {"title", "author", "page_count", "pages_read"}}
+```
+
+**Key files:**
+- `mcp_tools/file_reader/server.py` — tool logic (~140 lines)
+- `mcp_tools/file_reader/main.py` — entrypoint, port 9003
+- `mcp_tools/file_reader/tests/test_server.py` — 24 unit tests
+- `mcp_tools/file_reader/tests/test_integration.py` — 1 integration test (no env vars required)
+- `mcp_tools/file_reader/tests/fixtures/sample.pdf` — bundled 2-page test fixture
+
+**Env vars:** None required
+
+---
 
 ## citation_checker ⬜ (port 9004)
 Tools: URL validation + credibility heuristics

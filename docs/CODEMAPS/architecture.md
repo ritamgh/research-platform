@@ -31,7 +31,7 @@ Orchestrator (LangGraph) ──── A2A Protocol ────► Web Research 
 |---|---|---|
 | `mcp_tools/web_search` | ✅ Built | 9001 |
 | `mcp_tools/vector_db` | ✅ Built | 9002 |
-| `mcp_tools/file_reader` | ⬜ Planned | 9003 |
+| `mcp_tools/file_reader` | ✅ Built | 9003 |
 | `mcp_tools/citation_checker` | ⬜ Planned | 9004 |
 | `agents/web_research` | ⬜ Planned | 8001 |
 | `agents/rag` | ⬜ Planned | 8002 |
