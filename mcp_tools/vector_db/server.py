@@ -129,3 +129,56 @@ async def ingest_document(
         "chunks_stored": len(chunks),
         "title": title,
     })
+
+
+@mcp.tool
+async def search_documents(
+    query: str,
+    collection: str = "documents",
+    num_results: int = 5,
+) -> str:
+    """Search the vector database for documents semantically similar to a query."""
+    if not query or not query.strip():
+        raise McpError(ErrorData(code=INVALID_PARAMS, message="query must not be empty"))
+    if not collection or not collection.strip():
+        raise McpError(ErrorData(code=INVALID_PARAMS, message="collection must not be empty"))
+    if not 1 <= num_results <= 20:
+        raise McpError(ErrorData(code=INVALID_PARAMS, message="num_results must be between 1 and 20"))
+
+    qdrant = _get_qdrant_client()
+
+    if not await qdrant.collection_exists(collection):
+        raise McpError(ErrorData(code=INVALID_REQUEST, message=f"Collection '{collection}' does not exist"))
+
+    query_vector = await _get_embedding(query)
+
+    last_error = "unknown error"
+    for attempt in range(3):
+        if attempt > 0:
+            await asyncio.sleep(BACKOFF_DELAYS[attempt - 1])
+        try:
+            results = await qdrant.search(
+                collection_name=collection,
+                query_vector=query_vector,
+                limit=num_results,
+            )
+            break
+        except Exception as e:
+            last_error = str(e)
+            continue
+    else:
+        raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"Qdrant search failed after 3 attempts: {last_error}"))
+
+    return json.dumps({
+        "query": query,
+        "collection": collection,
+        "results": [
+            {
+                "title": r.payload.get("title", ""),
+                "url": r.payload.get("url", ""),
+                "content": r.payload.get("content", ""),
+                "score": float(r.score),
+            }
+            for r in results
+        ],
+    })
