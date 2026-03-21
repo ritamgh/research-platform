@@ -371,6 +371,20 @@ async def test_empty_query_raises_without_external_call(mcp_server):
 
 
 @pytest.mark.asyncio
+async def test_whitespace_query_raises_without_external_call(mcp_server):
+    """Whitespace-only query raises ToolError before any external call."""
+    with patch.dict(os.environ, {"QDRANT_URL": "http://localhost:6333", "OPENAI_API_KEY": "test-key"}):
+        with patch("mcp_tools.vector_db.server.AsyncQdrantClient") as mock_qdrant_cls:
+            with patch("mcp_tools.vector_db.server.AsyncOpenAI") as mock_openai_cls:
+                async with Client(mcp_server) as client:
+                    with pytest.raises(ToolError):
+                        await client.call_tool("search_documents", {"query": "   "})
+
+    mock_qdrant_cls.assert_not_called()
+    mock_openai_cls.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_num_results_zero_raises_without_external_call(mcp_server):
     """num_results=0 raises ToolError before any external call."""
     with patch.dict(os.environ, {"QDRANT_URL": "http://localhost:6333", "OPENAI_API_KEY": "test-key"}):
@@ -404,17 +418,19 @@ async def test_num_results_21_raises_without_external_call(mcp_server):
 
 @pytest.mark.asyncio
 async def test_search_missing_collection_raises_immediately(mcp_server):
-    """search_documents raises ToolError immediately if collection doesn't exist — no Qdrant search call."""
+    """search_documents raises ToolError immediately if collection doesn't exist — no embedding call made."""
     mock_qdrant = _mock_qdrant(collection_exists=False)
+    mock_openai_client = _mock_openai()
 
     with patch.dict(os.environ, {"QDRANT_URL": "http://localhost:6333", "OPENAI_API_KEY": "test-key"}):
         with patch("mcp_tools.vector_db.server.AsyncQdrantClient", return_value=mock_qdrant):
-            with patch("mcp_tools.vector_db.server.AsyncOpenAI", return_value=_mock_openai()):
+            with patch("mcp_tools.vector_db.server.AsyncOpenAI", return_value=mock_openai_client):
                 async with Client(mcp_server) as client:
                     with pytest.raises(ToolError):
                         await client.call_tool("search_documents", {"query": "test"})
 
     mock_qdrant.search.assert_not_called()
+    mock_openai_client.embeddings.create.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -432,3 +448,20 @@ async def test_collection_param_routes_to_correct_collection(mcp_server):
 
     mock_qdrant.search.assert_called_once()
     assert mock_qdrant.search.call_args.kwargs["collection_name"] == "my_research"
+
+
+@pytest.mark.asyncio
+async def test_num_results_forwarded_as_limit_to_qdrant(mcp_server):
+    """num_results parameter is passed as limit to qdrant.search."""
+    mock_qdrant = _mock_qdrant(collection_exists=True)
+
+    with patch.dict(os.environ, {"QDRANT_URL": "http://localhost:6333", "OPENAI_API_KEY": "test-key"}):
+        with patch("mcp_tools.vector_db.server.AsyncQdrantClient", return_value=mock_qdrant):
+            with patch("mcp_tools.vector_db.server.AsyncOpenAI", return_value=_mock_openai()):
+                async with Client(mcp_server) as client:
+                    await client.call_tool("search_documents", {
+                        "query": "test", "num_results": 3
+                    })
+
+    mock_qdrant.search.assert_called_once()
+    assert mock_qdrant.search.call_args.kwargs["limit"] == 3
