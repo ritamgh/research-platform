@@ -95,3 +95,65 @@ async def test_include_answer_false_omits_answer(mcp_server):
 
     data = json.loads(result.content[0].text)
     assert "answer" not in data
+
+
+@pytest.mark.asyncio
+async def test_transient_503_retries_and_succeeds(mcp_server):
+    """503 on first two attempts, success on third attempt."""
+    with patch.dict(os.environ, {"TAVILY_API_KEY": "test-key"}):
+        with patch("mcp_tools.web_search.server.asyncio.sleep"):
+            async with respx.mock:
+                route = respx.post("https://api.tavily.com/search")
+                route.side_effect = [
+                    httpx.Response(503),
+                    httpx.Response(503),
+                    httpx.Response(200, json=TAVILY_SUCCESS_RESPONSE),
+                ]
+                async with Client(mcp_server) as client:
+                    result = await client.call_tool("search_web", {"query": "test"})
+
+    data = json.loads(result.content[0].text)
+    assert len(data["results"]) == 2
+    assert route.call_count == 3
+
+
+@pytest.mark.asyncio
+async def test_three_consecutive_503s_raises_error(mcp_server):
+    """Three consecutive 503s exhaust retries and raise ToolError."""
+    with patch.dict(os.environ, {"TAVILY_API_KEY": "test-key"}):
+        with patch("mcp_tools.web_search.server.asyncio.sleep"):
+            async with respx.mock:
+                respx.post("https://api.tavily.com/search").mock(
+                    return_value=httpx.Response(503)
+                )
+                async with Client(mcp_server) as client:
+                    with pytest.raises(ToolError):
+                        await client.call_tool("search_web", {"query": "test"})
+
+
+@pytest.mark.asyncio
+async def test_429_rate_limit_retries_then_raises(mcp_server):
+    """429 rate limit responses are retried; raises ToolError after exhaustion."""
+    with patch.dict(os.environ, {"TAVILY_API_KEY": "test-key"}):
+        with patch("mcp_tools.web_search.server.asyncio.sleep"):
+            async with respx.mock:
+                respx.post("https://api.tavily.com/search").mock(
+                    return_value=httpx.Response(429)
+                )
+                async with Client(mcp_server) as client:
+                    with pytest.raises(ToolError):
+                        await client.call_tool("search_web", {"query": "test"})
+
+
+@pytest.mark.asyncio
+async def test_timeout_retries_then_raises(mcp_server):
+    """httpx.TimeoutException is retried; raises ToolError after exhaustion."""
+    with patch.dict(os.environ, {"TAVILY_API_KEY": "test-key"}):
+        with patch("mcp_tools.web_search.server.asyncio.sleep"):
+            async with respx.mock:
+                respx.post("https://api.tavily.com/search").mock(
+                    side_effect=httpx.TimeoutException("timed out")
+                )
+                async with Client(mcp_server) as client:
+                    with pytest.raises(ToolError):
+                        await client.call_tool("search_web", {"query": "test"})
