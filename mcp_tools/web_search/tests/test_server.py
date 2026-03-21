@@ -157,3 +157,90 @@ async def test_timeout_retries_then_raises(mcp_server):
                 async with Client(mcp_server) as client:
                     with pytest.raises(ToolError):
                         await client.call_tool("search_web", {"query": "test"})
+
+
+@pytest.mark.asyncio
+async def test_401_raises_immediately_without_retry(mcp_server):
+    """401 auth failure raises ToolError immediately — no retry."""
+    with patch.dict(os.environ, {"TAVILY_API_KEY": "bad-key"}):
+        async with respx.mock:
+            route = respx.post("https://api.tavily.com/search").mock(
+                return_value=httpx.Response(401)
+            )
+            async with Client(mcp_server) as client:
+                with pytest.raises(ToolError):
+                    await client.call_tool("search_web", {"query": "test"})
+
+    # Must only call Tavily once — no retries on 401
+    assert route.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_400_bad_request_raises_immediately_without_retry(mcp_server):
+    """400 bad request raises ToolError immediately — no retry."""
+    with patch.dict(os.environ, {"TAVILY_API_KEY": "test-key"}):
+        async with respx.mock:
+            route = respx.post("https://api.tavily.com/search").mock(
+                return_value=httpx.Response(400, text="bad request")
+            )
+            async with Client(mcp_server) as client:
+                with pytest.raises(ToolError):
+                    await client.call_tool("search_web", {"query": "test"})
+
+    assert route.call_count == 1  # no retry on 400
+
+
+@pytest.mark.asyncio
+async def test_num_results_zero_raises_without_tavily_call(mcp_server):
+    """num_results=0 raises ToolError before any Tavily request is made."""
+    with patch.dict(os.environ, {"TAVILY_API_KEY": "test-key"}):
+        async with respx.mock:
+            route = respx.post("https://api.tavily.com/search")
+            async with Client(mcp_server) as client:
+                with pytest.raises(ToolError):
+                    await client.call_tool("search_web", {"query": "test", "num_results": 0})
+
+    assert route.call_count == 0  # Tavily was never called
+
+
+@pytest.mark.asyncio
+async def test_num_results_eleven_raises_without_tavily_call(mcp_server):
+    """num_results=11 raises ToolError before any Tavily request."""
+    with patch.dict(os.environ, {"TAVILY_API_KEY": "test-key"}):
+        async with respx.mock:
+            route = respx.post("https://api.tavily.com/search")
+            async with Client(mcp_server) as client:
+                with pytest.raises(ToolError):
+                    await client.call_tool("search_web", {"query": "test", "num_results": 11})
+
+    assert route.call_count == 0
+
+
+@pytest.mark.asyncio
+async def test_num_results_one_is_valid(mcp_server):
+    """num_results=1 (lower boundary) is accepted."""
+    with patch.dict(os.environ, {"TAVILY_API_KEY": "test-key"}):
+        async with respx.mock:
+            respx.post("https://api.tavily.com/search").mock(
+                return_value=httpx.Response(200, json=TAVILY_SUCCESS_RESPONSE)
+            )
+            async with Client(mcp_server) as client:
+                result = await client.call_tool("search_web", {"query": "test", "num_results": 1})
+
+    data = json.loads(result.content[0].text)
+    assert "results" in data
+
+
+@pytest.mark.asyncio
+async def test_num_results_ten_is_valid(mcp_server):
+    """num_results=10 (upper boundary) is accepted."""
+    with patch.dict(os.environ, {"TAVILY_API_KEY": "test-key"}):
+        async with respx.mock:
+            respx.post("https://api.tavily.com/search").mock(
+                return_value=httpx.Response(200, json=TAVILY_SUCCESS_RESPONSE)
+            )
+            async with Client(mcp_server) as client:
+                result = await client.call_tool("search_web", {"query": "test", "num_results": 10})
+
+    data = json.loads(result.content[0].text)
+    assert "results" in data
