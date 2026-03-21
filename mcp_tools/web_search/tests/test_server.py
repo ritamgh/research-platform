@@ -244,3 +244,47 @@ async def test_num_results_ten_is_valid(mcp_server):
 
     data = json.loads(result.content[0].text)
     assert "results" in data
+
+
+@pytest.mark.asyncio
+async def test_results_with_null_url_are_filtered(mcp_server):
+    """Results where url is null are excluded from the response."""
+    response = {
+        "results": [
+            {"title": "Good Result", "url": "https://example.com", "content": "...", "score": 0.9},
+            {"title": "No URL Result", "url": None, "content": "...", "score": 0.8},
+        ]
+    }
+    with patch.dict(os.environ, {"TAVILY_API_KEY": "test-key"}):
+        async with respx.mock:
+            respx.post("https://api.tavily.com/search").mock(
+                return_value=httpx.Response(200, json=response)
+            )
+            async with Client(mcp_server) as client:
+                result = await client.call_tool("search_web", {"query": "test"})
+
+    data = json.loads(result.content[0].text)
+    assert len(data["results"]) == 1
+    assert data["results"][0]["url"] == "https://example.com"
+
+
+@pytest.mark.asyncio
+async def test_results_with_missing_title_are_filtered(mcp_server):
+    """Results missing a title field are excluded from the response."""
+    response = {
+        "results": [
+            {"title": "Good Result", "url": "https://example.com", "content": "...", "score": 0.9},
+            {"url": "https://notitle.com", "content": "...", "score": 0.7},  # no title key
+        ]
+    }
+    with patch.dict(os.environ, {"TAVILY_API_KEY": "test-key"}):
+        async with respx.mock:
+            respx.post("https://api.tavily.com/search").mock(
+                return_value=httpx.Response(200, json=response)
+            )
+            async with Client(mcp_server) as client:
+                result = await client.call_tool("search_web", {"query": "test"})
+
+    data = json.loads(result.content[0].text)
+    assert len(data["results"]) == 1
+    assert data["results"][0]["url"] == "https://example.com"
