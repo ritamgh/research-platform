@@ -1,8 +1,8 @@
 # mcp_tools/citation_checker/tests/test_server.py
 import json
 import pytest
-import respx
 import httpx
+import respx
 from fastmcp import Client
 from fastmcp.exceptions import ToolError
 
@@ -22,6 +22,13 @@ async def test_credibility_empty_url_raises(mcp_server):
     async with Client(mcp_server) as client:
         with pytest.raises(ToolError):
             await client.call_tool("check_credibility", {"url": ""})
+
+
+async def test_credibility_whitespace_url_raises(mcp_server):
+    """Whitespace-only url raises ToolError (caught by .strip() check)."""
+    async with Client(mcp_server) as client:
+        with pytest.raises(ToolError):
+            await client.call_tool("check_credibility", {"url": "   "})
 
 
 async def test_credibility_schemeless_url_raises(mcp_server):
@@ -188,3 +195,117 @@ async def test_credibility_port_and_path_ignored(mcp_server):
         result = await client.call_tool("check_credibility", {"url": "https://arxiv.org:8080/abs/123"})
     data = json.loads(result.content[0].text)
     assert data["score"] == 0.9
+
+
+# ---------------------------------------------------------------------------
+# check_reachability — input validation
+# ---------------------------------------------------------------------------
+
+async def test_reachability_empty_url_raises(mcp_server):
+    """Empty url raises ToolError."""
+    async with Client(mcp_server) as client:
+        with pytest.raises(ToolError):
+            await client.call_tool("check_reachability", {"url": ""})
+
+
+async def test_reachability_non_http_scheme_raises(mcp_server):
+    """Non-http/https scheme (e.g. ftp://) raises ToolError."""
+    async with Client(mcp_server) as client:
+        with pytest.raises(ToolError):
+            await client.call_tool("check_reachability", {"url": "ftp://example.com"})
+
+
+async def test_reachability_empty_hostname_raises(mcp_server):
+    """URL with empty hostname after scheme (e.g. https:///path) raises ToolError."""
+    async with Client(mcp_server) as client:
+        with pytest.raises(ToolError):
+            await client.call_tool("check_reachability", {"url": "https:///path"})
+
+
+# ---------------------------------------------------------------------------
+# check_reachability — happy paths
+# ---------------------------------------------------------------------------
+
+async def test_reachability_happy_path(mcp_server):
+    """Successful HEAD returns reachable=true with status_code, latency_ms, final_url."""
+    with respx.mock:
+        respx.head("https://arxiv.org/").mock(return_value=httpx.Response(200))
+        async with Client(mcp_server) as client:
+            result = await client.call_tool("check_reachability", {"url": "https://arxiv.org/"})
+    data = json.loads(result.content[0].text)
+    assert data["reachable"] is True
+    assert data["status_code"] == 200
+    assert isinstance(data["latency_ms"], int)
+    assert data["latency_ms"] >= 0
+    assert data["final_url"] == "https://arxiv.org/"
+
+
+async def test_reachability_404_is_reachable(mcp_server):
+    """404 response counts as reachable=true (server responded)."""
+    with respx.mock:
+        respx.head("https://example.com/missing").mock(return_value=httpx.Response(404))
+        async with Client(mcp_server) as client:
+            result = await client.call_tool("check_reachability", {"url": "https://example.com/missing"})
+    data = json.loads(result.content[0].text)
+    assert data["reachable"] is True
+    assert data["status_code"] == 404
+
+
+async def test_reachability_redirect_final_url(mcp_server):
+    """Redirects are followed; final_url reflects the resolved URL."""
+    with respx.mock:
+        respx.head("http://old.example.com/").mock(
+            return_value=httpx.Response(301, headers={"location": "https://new.example.com/"})
+        )
+        respx.head("https://new.example.com/").mock(return_value=httpx.Response(200))
+        async with Client(mcp_server) as client:
+            result = await client.call_tool("check_reachability", {"url": "http://old.example.com/"})
+    data = json.loads(result.content[0].text)
+    assert data["reachable"] is True
+    assert data["final_url"] == "https://new.example.com/"
+
+
+# ---------------------------------------------------------------------------
+# check_reachability — network failures → reachable=false
+# ---------------------------------------------------------------------------
+
+async def test_reachability_timeout_returns_unreachable(mcp_server):
+    """Timeout returns reachable=false with all null fields."""
+    with respx.mock:
+        respx.head("https://slow.example.com/").mock(
+            side_effect=httpx.TimeoutException("timed out")
+        )
+        async with Client(mcp_server) as client:
+            result = await client.call_tool("check_reachability", {"url": "https://slow.example.com/"})
+    data = json.loads(result.content[0].text)
+    assert data["reachable"] is False
+    assert data["status_code"] is None
+    assert data["latency_ms"] is None
+    assert data["final_url"] is None
+
+
+async def test_reachability_connect_error_returns_unreachable(mcp_server):
+    """ConnectError (DNS failure, refused) returns reachable=false."""
+    with respx.mock:
+        respx.head("https://unreachable.example.com/").mock(
+            side_effect=httpx.ConnectError("connection refused")
+        )
+        async with Client(mcp_server) as client:
+            result = await client.call_tool("check_reachability", {"url": "https://unreachable.example.com/"})
+    data = json.loads(result.content[0].text)
+    assert data["reachable"] is False
+    assert data["status_code"] is None
+
+
+async def test_reachability_too_many_redirects_returns_unreachable(mcp_server):
+    """TooManyRedirects (httpx.HTTPError subclass) returns reachable=false."""
+    req = httpx.Request("HEAD", "https://redirect-loop.com/")
+    with respx.mock:
+        respx.head("https://redirect-loop.com/").mock(
+            side_effect=httpx.TooManyRedirects("too many redirects", request=req)
+        )
+        async with Client(mcp_server) as client:
+            result = await client.call_tool("check_reachability", {"url": "https://redirect-loop.com/"})
+    data = json.loads(result.content[0].text)
+    assert data["reachable"] is False
+    assert data["status_code"] is None

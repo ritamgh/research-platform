@@ -79,3 +79,42 @@ async def check_credibility(url: str) -> str:
         ))
     score, label, reason = _score_url(url)
     return json.dumps({"url": url, "score": score, "label": label, "reason": reason})
+
+
+@mcp.tool
+async def check_reachability(url: str) -> str:
+    """Check if a URL is reachable via a single HTTP HEAD request."""
+    if not url or not url.strip():
+        raise McpError(ErrorData(code=INVALID_PARAMS, message="url must not be empty"))
+    if not url.startswith("http://") and not url.startswith("https://"):
+        raise McpError(ErrorData(
+            code=INVALID_PARAMS,
+            message="url must start with http:// or https://",
+        ))
+    hostname = urlparse(url).hostname
+    if not hostname:
+        raise McpError(ErrorData(
+            code=INVALID_PARAMS,
+            message=f"Could not parse hostname from URL: {url!r}",
+        ))
+
+    start = time.monotonic()
+    try:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=10.0) as client:
+            resp = await client.head(url)
+        latency_ms = round((time.monotonic() - start) * 1000)
+        return json.dumps({
+            "url": url,
+            "reachable": True,
+            "status_code": resp.status_code,
+            "latency_ms": latency_ms,
+            "final_url": str(resp.url),
+        })
+    except httpx.HTTPError:
+        return json.dumps({
+            "url": url,
+            "reachable": False,
+            "status_code": None,
+            "latency_ms": None,
+            "final_url": None,
+        })
