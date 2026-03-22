@@ -1,10 +1,11 @@
-Codemap Diff Report
+Codemap Update Report
 Generated: 2026-03-22
 Previous update: 2026-03-21
 
 === New Tools Added ===
-None. All three Week 1 tools (web_search, vector_db, file_reader) were already
-documented as of 2026-03-21.
+citation_checker (port 9004) — now complete and fully documented.
+Provides two tools: check_credibility (offline domain/TLD heuristics) and
+check_reachability (HTTP HEAD + latency measurement).
 
 === Changes Since Last Update ===
 
@@ -33,10 +34,46 @@ architecture.md:
 - Updated "Build Status" heading to clarify Week 1 is complete
 
 === Current Tool Status ===
-  web_search      ✅ Built (port 9001)
-  vector_db       ✅ Built (port 9002)
-  file_reader     ✅ Built (port 9003)
-  citation_checker ⬜ Planned (port 9004)
+  web_search       ✅ Built (port 9001)
+  vector_db        ✅ Built (port 9002)
+  file_reader      ✅ Built (port 9003)
+  citation_checker ✅ Built (port 9004)
+
+=== Files Updated in This Codemap Scan ===
+
+1. docs/CODEMAPS/architecture.md
+   - Build Status: citation_checker ⬜ Planned → ✅ Built
+   - Narrative: "All three Week 1 tools..." → "All four Week 1 tools..."
+   - Added: citation_checker capability summary
+   - File stats updated (files scanned 12 → 15, tokens ~380 → ~420)
+
+2. docs/CODEMAPS/mcp_tools.md
+   - Replaced placeholder citation_checker section with full spec
+   - Added ASCII tree of check_credibility logic (tier-based domain/TLD scoring)
+   - Added ASCII tree of check_reachability logic (HTTP HEAD + latency)
+   - Added response shape examples for both tools
+   - Key files summary: ~121 lines server.py, 27 unit tests, 1 integration test
+   - Env vars: None required
+   - File stats updated (files scanned 12 → 15, tokens ~480 → ~620)
+
+3. docs/CODEMAPS/dependencies.md
+   - Added: citation_checker requirements.txt block
+     * fastmcp>=2.0, httpx>=0.27, python-dotenv>=1.0
+     * pytest>=8.0, pytest-asyncio>=0.24, respx>=0.21
+   - Added: New "Shared Dependencies" section
+     * Clarifies which of 4 servers use httpx, respx, etc.
+     * No new external packages needed (httpx, respx already in use)
+   - File stats updated (files scanned 12 → 15, tokens ~320 → ~360)
+
+Citation Checker Implementation Details:
+- check_credibility: Offline scoring via domain set lookup (24 research/news domains,
+  8-item TLD score dict, 3 low-credibility domain host lists, URL shortener filter)
+  Returns: {url, score 0.0-0.9, label "high"|"medium"|"low", reason string}
+- check_reachability: HTTP HEAD request with follow_redirects=True, timeout=10s,
+  latency tracking via time.monotonic()
+  Returns: {url, reachable bool, status_code, latency_ms, final_url} (null if unreachable)
+- Server: FastMCP("citation-checker-tool"), runs on 0.0.0.0:9004
+- Tests: 27 unit tests + 1 live integration test (respx mocks httpx in unit suite)
 
 === Week 2–4 Components (all still planned) ===
   agents/web_research, agents/rag, agents/summariser, orchestrator, LangSmith evals

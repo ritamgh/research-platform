@@ -1,4 +1,4 @@
-<!-- Generated: 2026-03-22 | Files scanned: 12 | Token estimate: ~320 -->
+<!-- Generated: 2026-03-22 | Files scanned: 15 | Token estimate: ~360 -->
 
 # Dependencies
 
@@ -43,6 +43,26 @@ pytest>=8.0
 pytest-asyncio>=0.24
 respx>=0.21         # httpx mock for tests
 ```
+
+**`mcp_tools/citation_checker` — `requirements.txt`:**
+```
+fastmcp>=2.0        # MCP server framework
+httpx>=0.27         # async HTTP client for reachability checks
+python-dotenv>=1.0  # .env loading
+pytest>=8.0
+pytest-asyncio>=0.24
+respx>=0.21         # httpx mock for tests
+```
+
+## Shared Dependencies
+
+The four MCP tool servers share these common dependencies:
+- **fastmcp>=2.0** — all servers
+- **httpx>=0.27** — web_search, file_reader, citation_checker (for HTTP calls)
+- **python-dotenv>=1.0** — all servers
+- **pytest>=8.0, pytest-asyncio>=0.24, respx>=0.21** — test suites in all servers
+
+Note: respx is used to mock httpx calls in unit tests; qdrant-client and pymupdf are tool-specific.
 
 ## Planned Libraries (from project spec)
 

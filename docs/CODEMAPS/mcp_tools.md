@@ -1,4 +1,4 @@
-<!-- Generated: 2026-03-22 | Files scanned: 12 | Token estimate: ~480 -->
+<!-- Generated: 2026-03-22 | Files scanned: 15 | Token estimate: ~620 -->
 
 # MCP Tool Servers
 
@@ -97,5 +97,41 @@ server.py →  FastMCP("file-reader-tool")
 
 ---
 
-## citation_checker ⬜ (port 9004)
-Tools: URL validation + credibility heuristics
+## citation_checker ✅ (port 9004)
+
+```
+main.py  →  load_dotenv() → mcp.run(transport="http", host="0.0.0.0", port=9004)
+server.py →  FastMCP("citation-checker-tool")
+              ├── check_credibility(url) → str (JSON)
+              │     ├── validate: url non-empty, can be parsed to hostname
+              │     ├── _score_url(url) — tier checks (first match wins):
+              │     │     ├── RESEARCH_DOMAINS {arxiv.org, pubmed.ncbi.nlm.nih.gov, nature.com, ...} → (0.9, "high")
+              │     │     ├── CREDIBLE_NEWS_DOMAINS {reuters.com, apnews.com, bbc.com, who.int, cdc.gov} → (0.9, "high")
+              │     │     ├── BLOG_HOST_DOMAINS {wordpress.com, blogspot.com, medium.com, ...} → (0.2, "low")
+              │     │     ├── URL_SHORTENER_DOMAINS {bit.ly, tinyurl.com, t.co, ...} → (0.2, "low")
+              │     │     ├── LOW_CREDIBILITY_TLDS {.click, .biz, .info, .xyz, .tk, .ml, .ga, .cf} → (0.1, "low")
+              │     │     └── TLD_SCORES {.edu→0.85, .gov→0.85, .org→0.6, .com→0.5, .net→0.5, default→0.4}
+              │     └── no HTTP calls — purely heuristic
+              └── check_reachability(url) → str (JSON)
+                    ├── validate: url non-empty, starts with http:// or https://, can be parsed to hostname
+                    ├── httpx.AsyncClient(follow_redirects=True, timeout=10.0)
+                    ├── HEAD request + latency measurement via time.monotonic()
+                    └── return reachable + status_code + latency_ms + final_url (or all null if unreachable)
+```
+
+**Response shapes:**
+```json
+{"url": "...", "score": 0.9, "label": "high", "reason": "Known research publisher"}
+{"url": "...", "reachable": true, "status_code": 200, "latency_ms": 145, "final_url": "..."}
+{"url": "...", "reachable": false, "status_code": null, "latency_ms": null, "final_url": null}
+```
+
+**Key files:**
+- `mcp_tools/citation_checker/server.py` — tool logic, domain/TLD scoring, reachability (~121 lines)
+- `mcp_tools/citation_checker/main.py` — entrypoint, binds to 0.0.0.0:9004
+- `mcp_tools/citation_checker/tests/test_server.py` — 27 unit tests
+- `mcp_tools/citation_checker/tests/test_integration.py` — 1 live integration test
+
+**Env vars:** None required
+
+---

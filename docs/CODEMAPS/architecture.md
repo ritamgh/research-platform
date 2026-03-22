@@ -1,4 +1,4 @@
-<!-- Generated: 2026-03-22 | Files scanned: 12 | Token estimate: ~380 -->
+<!-- Generated: 2026-03-22 | Files scanned: 15 | Token estimate: ~420 -->
 
 # Architecture
 
@@ -19,7 +19,7 @@ Orchestrator (LangGraph) ──── A2A Protocol ────► Web Research 
                                               ┌────────────▼────────────┐
                                               │   MCP Tool Servers      │
                                               │  web_search  vector_db  │
-                                              │  file_reader  citation  │
+                                              │  file_reader citation   │
                                               └─────────────────────────┘
                                                            │
                                               LangSmith (traces + evals)
@@ -32,15 +32,15 @@ Orchestrator (LangGraph) ──── A2A Protocol ────► Web Research 
 | `mcp_tools/web_search` | ✅ Built | 9001 |
 | `mcp_tools/vector_db` | ✅ Built | 9002 |
 | `mcp_tools/file_reader` | ✅ Built | 9003 |
-| `mcp_tools/citation_checker` | ⬜ Planned | 9004 |
+| `mcp_tools/citation_checker` | ✅ Built | 9004 |
 | `agents/web_research` | ⬜ Planned | 8001 |
 | `agents/rag` | ⬜ Planned | 8002 |
 | `agents/summariser` | ⬜ Planned | 8003 |
 | `orchestrator` | ⬜ Planned | 8000 |
 
-All three Week 1 MCP tool servers are now complete. The most recent change to
-`file_reader` added an optional path allowlist (`FILE_READER_BASE_DIR`), explicit
-`fitz.Document.close()` in a finally block, and bound the server to `0.0.0.0`.
+All four Week 1 MCP tool servers are now complete. The most recent completion is
+`citation_checker`, which provides two tools: `check_credibility` (offline domain/TLD
+heuristics) and `check_reachability` (HTTP HEAD + latency measurement).
 
 ## Key Protocols
 
