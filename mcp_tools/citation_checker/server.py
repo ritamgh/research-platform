@@ -98,9 +98,9 @@ async def check_reachability(url: str) -> str:
             message=f"Could not parse hostname from URL: {url!r}",
         ))
 
-    start = time.monotonic()
     try:
         async with httpx.AsyncClient(follow_redirects=True, timeout=10.0) as client:
+            start = time.monotonic()
             resp = await client.head(url)
         latency_ms = round((time.monotonic() - start) * 1000)
         return json.dumps({

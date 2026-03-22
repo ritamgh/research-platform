@@ -208,6 +208,13 @@ async def test_reachability_empty_url_raises(mcp_server):
             await client.call_tool("check_reachability", {"url": ""})
 
 
+async def test_reachability_whitespace_url_raises(mcp_server):
+    """Whitespace-only url raises ToolError."""
+    async with Client(mcp_server) as client:
+        with pytest.raises(ToolError):
+            await client.call_tool("check_reachability", {"url": "   "})
+
+
 async def test_reachability_non_http_scheme_raises(mcp_server):
     """Non-http/https scheme (e.g. ftp://) raises ToolError."""
     async with Client(mcp_server) as client:
@@ -262,6 +269,7 @@ async def test_reachability_redirect_final_url(mcp_server):
             result = await client.call_tool("check_reachability", {"url": "http://old.example.com/"})
     data = json.loads(result.content[0].text)
     assert data["reachable"] is True
+    assert data["url"] == "http://old.example.com/"
     assert data["final_url"] == "https://new.example.com/"
 
 
