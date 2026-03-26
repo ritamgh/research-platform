@@ -1,0 +1,24 @@
+{
+  "name": "rag-agent",
+  "description": "Retrieves relevant information from the local document corpus using vector search and file reading",
+  "version": "1.0.0",
+  "url": "http://localhost:8002",
+  "capabilities": {
+    "streaming": false,
+    "push_notifications": false
+  },
+  "skills": [
+    {
+      "id": "rag_lookup",
+      "name": "RAG Lookup",
+      "description": "Given a research question, searches the local document corpus and returns relevant passages with source references",
+      "tags": ["rag", "retrieval", "documents", "vector-search"],
+      "examples": [
+        "What does the uploaded paper say about attention mechanisms?",
+        "Find relevant passages about training data contamination"
+      ]
+    }
+  ],
+  "default_input_modes": ["text/plain"],
+  "default_output_modes": ["text/plain"]
+}

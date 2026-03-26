@@ -1,0 +1,24 @@
+{
+  "name": "web-research-agent",
+  "description": "Searches the web for recent information and returns structured findings with sources",
+  "version": "1.0.0",
+  "url": "http://localhost:8001",
+  "capabilities": {
+    "streaming": false,
+    "push_notifications": false
+  },
+  "skills": [
+    {
+      "id": "web_research",
+      "name": "Web Research",
+      "description": "Given a research question, searches the web and returns summarized findings with cited sources",
+      "tags": ["research", "web", "search"],
+      "examples": [
+        "What are the latest developments in mechanistic interpretability?",
+        "Summarize recent papers on chain-of-thought prompting"
+      ]
+    }
+  ],
+  "default_input_modes": ["text/plain"],
+  "default_output_modes": ["text/plain"]
+}
