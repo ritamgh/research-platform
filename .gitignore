@@ -45,3 +45,4 @@ data/
 
 # Jupyter
 .ipynb_checkpoints/
+.worktrees/
