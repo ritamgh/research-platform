@@ -1,4 +1,8 @@
-"""Async A2A client for calling A2A agent servers."""
+"""Async A2A client for calling A2A agent servers.
+
+Note: Uses the deprecated A2AClient class from a2a-python. Migration to
+ClientFactory (new streaming API) is tracked for a future PR.
+"""
 import uuid
 
 import httpx
