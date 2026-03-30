@@ -53,6 +53,8 @@ async def call_agent(agent_url: str, query: str, timeout: float = 30.0) -> str:
         raise A2ACallError(f"No text artifact in Task response from {agent_url}")
     else:
         # Message response
+        if not hasattr(result, "parts"):
+            raise A2ACallError(f"Message response missing 'parts' from {agent_url}")
         for part in result.parts:
             if hasattr(part.root, "text"):
                 return part.root.text
@@ -80,3 +82,5 @@ async def discover_agent(agent_url: str, timeout: float = 10.0) -> AgentCard:
         raise A2ACallError(f"Timeout discovering {agent_url}: {exc}") from exc
     except httpx.HTTPError as exc:
         raise A2ACallError(f"HTTP error discovering {agent_url}: {exc}") from exc
+    except Exception as exc:
+        raise A2ACallError(f"Failed to parse agent card from {agent_url}: {exc}") from exc
