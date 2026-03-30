@@ -15,6 +15,11 @@ def _route_decision(state: ResearchState) -> str:
     return "both"
 
 
+def _web_research_next(state: ResearchState) -> str:
+    """After web_research: proceed to rag_lookup only for 'both' route."""
+    return "rag_lookup" if state.get("route") == "both" else "synthesize"
+
+
 def build_graph():
     """Build and compile the research orchestrator StateGraph."""
     graph = StateGraph(ResearchState)
@@ -41,7 +46,7 @@ def build_graph():
     # web_research: either go to rag (for "both") or directly to synthesize
     graph.add_conditional_edges(
         "web_research",
-        lambda s: "rag_lookup" if s.get("route") == "both" else "synthesize",
+        _web_research_next,
         {
             "rag_lookup": "rag_lookup",
             "synthesize": "synthesize",

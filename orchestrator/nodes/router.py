@@ -23,7 +23,7 @@ No markdown, no extra text."""
 _VALID_ROUTES = frozenset({"web_only", "rag_only", "both", "direct"})
 
 
-def router_node(state: ResearchState) -> dict:
+async def router_node(state: ResearchState) -> dict:
     """Classify the query and return routing decision.
 
     Returns a dict updating state["route"].
@@ -37,7 +37,7 @@ def router_node(state: ResearchState) -> dict:
     llm = ChatAnthropic(model=config.router_model, temperature=0)
 
     try:
-        response = llm.invoke(
+        response = await llm.ainvoke(
             [
                 {"role": "system", "content": _SYSTEM_PROMPT},
                 {"role": "user", "content": f"Query: {query}"},
