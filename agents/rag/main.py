@@ -9,7 +9,7 @@ from a2a.server.apps import A2AFastAPIApplication
 from a2a.server.events import EventQueue
 from a2a.server.request_handlers import DefaultRequestHandler
 from a2a.server.tasks import InMemoryTaskStore, TaskUpdater
-from a2a.types import AgentCapabilities, AgentCard, AgentSkill
+from a2a.types import AgentCapabilities, AgentCard, AgentSkill, Part, TextPart
 from a2a.utils import new_agent_text_message, new_task
 from dotenv import load_dotenv
 
@@ -66,7 +66,7 @@ class RagAgentExecutor(AgentExecutor):
             result_text = await run_rag_lookup(query)
 
             await updater.add_artifact(
-                [new_agent_text_message(result_text, task.context_id, task.id)]
+                [Part(root=TextPart(text=result_text))]
             )
             await updater.complete()
         except Exception as exc:
