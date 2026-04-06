@@ -3,7 +3,7 @@ import json
 import logging
 import re
 
-from langchain_anthropic import ChatAnthropic
+from langchain_openai import ChatOpenAI
 
 from orchestrator.a2a_client import A2ACallError, call_agent
 from orchestrator.config import OrchestratorConfig
@@ -32,7 +32,7 @@ async def synthesize_node(state: ResearchState) -> dict:
     config = OrchestratorConfig.from_env()
 
     if route == "direct":
-        llm = ChatAnthropic(model=config.router_model, temperature=0)
+        llm = ChatOpenAI(model=config.router_model, temperature=0)
         try:
             response = llm.invoke(
                 [{"role": "user", "content": f"Answer this research question concisely: {query}"}]

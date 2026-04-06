@@ -64,8 +64,10 @@ class TestRunSummariser:
         with patch("agents.summariser.agent._get_client") as mock_get_client:
             mock_client = AsyncMock()
             mock_response = MagicMock()
-            mock_response.content = [MagicMock(text="Final synthesised answer")]
-            mock_client.messages.create = AsyncMock(return_value=mock_response)
+            mock_response.choices = [MagicMock(message=MagicMock(content="Final synthesised answer"))]
+            mock_client.chat = MagicMock()
+            mock_client.chat.completions = MagicMock()
+            mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
             mock_get_client.return_value = mock_client
 
             from agents.summariser.agent import run_summariser
@@ -87,8 +89,10 @@ class TestRunSummariser:
         with patch("agents.summariser.agent._get_client") as mock_get_client:
             mock_client = AsyncMock()
             mock_response = MagicMock()
-            mock_response.content = [MagicMock(text="General answer")]
-            mock_client.messages.create = AsyncMock(return_value=mock_response)
+            mock_response.choices = [MagicMock(message=MagicMock(content="General answer"))]
+            mock_client.chat = MagicMock()
+            mock_client.chat.completions = MagicMock()
+            mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
             mock_get_client.return_value = mock_client
 
             from agents.summariser.agent import run_summariser
@@ -110,8 +114,10 @@ class TestRunSummariser:
         with patch("agents.summariser.agent._get_client") as mock_get_client:
             mock_client = AsyncMock()
             mock_response = MagicMock()
-            mock_response.content = [MagicMock(text="Answer")]
-            mock_client.messages.create = AsyncMock(return_value=mock_response)
+            mock_response.choices = [MagicMock(message=MagicMock(content="Answer"))]
+            mock_client.chat = MagicMock()
+            mock_client.chat.completions = MagicMock()
+            mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
             mock_get_client.return_value = mock_client
 
             from agents.summariser.agent import run_summariser

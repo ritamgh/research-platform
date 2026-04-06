@@ -5,15 +5,15 @@ from typing import Callable, Awaitable
 
 from llama_index.core import Settings
 from llama_index.core.llms import LLM
-from llama_index.llms.anthropic import Anthropic
+from llama_index.llms.openai import OpenAI
 
 from agents.rag.mcp_client import search_documents, read_file
 
 
 def _get_llm() -> LLM:
-    return Anthropic(
-        model=os.environ.get("RAG_LLM", "claude-haiku-4-5-20251001"),
-        api_key=os.environ.get("ANTHROPIC_API_KEY", ""),
+    return OpenAI(
+        model=os.environ.get("RAG_LLM", "gpt-4o-mini"),
+        api_key=os.environ.get("OPENAI_API_KEY", ""),
     )
 
 
@@ -51,7 +51,7 @@ async def run_rag_lookup(
 
     context = "\n\n---\n\n".join(context_parts)
 
-    # 4. Use LlamaIndex's Anthropic LLM to synthesise an answer from retrieved context
+    # 4. Use LlamaIndex's OpenAI LLM to synthesise an answer from retrieved context
     llm = _get_llm()
     prompt = (
         f"You are a research assistant. Based ONLY on the following retrieved passages, "

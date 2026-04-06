@@ -2,7 +2,7 @@
 import json
 import logging
 
-from langchain_anthropic import ChatAnthropic
+from langchain_openai import ChatOpenAI
 
 from orchestrator.config import OrchestratorConfig
 from orchestrator.state import ResearchState
@@ -34,7 +34,7 @@ async def router_node(state: ResearchState) -> dict:
         return {"route": "both"}
 
     config = OrchestratorConfig.from_env()
-    llm = ChatAnthropic(model=config.router_model, temperature=0)
+    llm = ChatOpenAI(model=config.router_model, temperature=0)
 
     try:
         response = await llm.ainvoke(

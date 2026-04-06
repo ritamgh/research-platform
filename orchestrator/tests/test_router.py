@@ -11,7 +11,7 @@ class TestRouterNode:
         mock_response = MagicMock()
         mock_response.content = '{"route": "web_only", "reasoning": "needs current news"}'
 
-        with patch("orchestrator.nodes.router.ChatAnthropic") as MockLLM:
+        with patch("orchestrator.nodes.router.ChatOpenAI") as MockLLM:
             mock_llm_instance = AsyncMock()
             mock_llm_instance.ainvoke = AsyncMock(return_value=mock_response)
             MockLLM.return_value = mock_llm_instance
@@ -27,7 +27,7 @@ class TestRouterNode:
         mock_response = MagicMock()
         mock_response.content = '{"route": "rag_only", "reasoning": "stored docs"}'
 
-        with patch("orchestrator.nodes.router.ChatAnthropic") as MockLLM:
+        with patch("orchestrator.nodes.router.ChatOpenAI") as MockLLM:
             mock_llm_instance = AsyncMock()
             mock_llm_instance.ainvoke = AsyncMock(return_value=mock_response)
             MockLLM.return_value = mock_llm_instance
@@ -43,7 +43,7 @@ class TestRouterNode:
         mock_response = MagicMock()
         mock_response.content = '{"route": "both", "reasoning": "benefits from both"}'
 
-        with patch("orchestrator.nodes.router.ChatAnthropic") as MockLLM:
+        with patch("orchestrator.nodes.router.ChatOpenAI") as MockLLM:
             mock_llm_instance = AsyncMock()
             mock_llm_instance.ainvoke = AsyncMock(return_value=mock_response)
             MockLLM.return_value = mock_llm_instance
@@ -59,7 +59,7 @@ class TestRouterNode:
         mock_response = MagicMock()
         mock_response.content = "this is not valid JSON at all"
 
-        with patch("orchestrator.nodes.router.ChatAnthropic") as MockLLM:
+        with patch("orchestrator.nodes.router.ChatOpenAI") as MockLLM:
             mock_llm_instance = AsyncMock()
             mock_llm_instance.ainvoke = AsyncMock(return_value=mock_response)
             MockLLM.return_value = mock_llm_instance
@@ -72,7 +72,7 @@ class TestRouterNode:
     async def test_falls_back_to_both_on_llm_exception(self):
         from orchestrator.nodes.router import router_node
 
-        with patch("orchestrator.nodes.router.ChatAnthropic") as MockLLM:
+        with patch("orchestrator.nodes.router.ChatOpenAI") as MockLLM:
             mock_llm_instance = AsyncMock()
             mock_llm_instance.ainvoke = AsyncMock(
                 side_effect=RuntimeError("LLM connection error")
@@ -87,7 +87,7 @@ class TestRouterNode:
     async def test_returns_both_for_empty_query_without_llm_call(self):
         from orchestrator.nodes.router import router_node
 
-        with patch("orchestrator.nodes.router.ChatAnthropic") as MockLLM:
+        with patch("orchestrator.nodes.router.ChatOpenAI") as MockLLM:
             result = await router_node({"query": ""})
 
         # LLM should NOT have been instantiated
@@ -101,7 +101,7 @@ class TestRouterNode:
         mock_response = MagicMock()
         mock_response.content = '{"route": "unknown_category", "reasoning": "oops"}'
 
-        with patch("orchestrator.nodes.router.ChatAnthropic") as MockLLM:
+        with patch("orchestrator.nodes.router.ChatOpenAI") as MockLLM:
             mock_llm_instance = AsyncMock()
             mock_llm_instance.ainvoke = AsyncMock(return_value=mock_response)
             MockLLM.return_value = mock_llm_instance

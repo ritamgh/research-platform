@@ -76,7 +76,7 @@ class TestSynthesizeNode:
         }
 
         with patch("orchestrator.nodes.synthesize.call_agent") as mock_call_agent, patch(
-            "orchestrator.nodes.synthesize.ChatAnthropic"
+            "orchestrator.nodes.synthesize.ChatOpenAI"
         ) as MockLLM:
             mock_llm_instance = MagicMock()
             mock_llm_instance.invoke = MagicMock(return_value=mock_response)

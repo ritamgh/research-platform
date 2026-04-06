@@ -47,7 +47,7 @@ def build_crew(search_fn=None) -> Crew:
         tools=[search_tool],
         verbose=False,
         allow_delegation=False,
-        llm=os.environ.get("CREWAI_LLM", "anthropic/claude-haiku-4-5-20251001"),
+        llm=os.environ.get("CREWAI_LLM", "openai/gpt-4o-mini"),
     )
 
     return Crew(agents=[researcher], tasks=[], verbose=False)
@@ -71,7 +71,7 @@ async def run_web_research(query: str, search_fn=None) -> str:
         tools=[search_tool],
         verbose=False,
         allow_delegation=False,
-        llm=os.environ.get("CREWAI_LLM", "anthropic/claude-haiku-4-5-20251001"),
+        llm=os.environ.get("CREWAI_LLM", "openai/gpt-4o-mini"),
     )
 
     task = Task(

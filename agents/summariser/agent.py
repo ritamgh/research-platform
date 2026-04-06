@@ -1,10 +1,10 @@
-"""Summariser agent using Anthropic SDK + citation_checker MCP tool."""
+"""Summariser agent using OpenAI SDK + citation_checker MCP tool."""
 import json
 import os
 import re
 from typing import Callable, Awaitable
 
-import anthropic
+from openai import AsyncOpenAI
 
 from agents.summariser.mcp_client import check_credibility
 
@@ -12,11 +12,11 @@ from agents.summariser.mcp_client import check_credibility
 _client = None
 
 
-def _get_client() -> anthropic.AsyncAnthropic:
+def _get_client() -> AsyncOpenAI:
     global _client
     if _client is None:
-        _client = anthropic.AsyncAnthropic(
-            api_key=os.environ.get("ANTHROPIC_API_KEY", "")
+        _client = AsyncOpenAI(
+            api_key=os.environ.get("OPENAI_API_KEY", "")
         )
     return _client
 
@@ -39,7 +39,7 @@ async def run_summariser(
 
     1. Extract URLs from both findings
     2. Check credibility of each URL via citation_checker MCP
-    3. Use Anthropic SDK to write the final synthesis, filtering low-credibility sources
+    3. Use OpenAI SDK to write the final synthesis, filtering low-credibility sources
     """
     _check = credibility_fn or check_credibility
 
@@ -92,10 +92,10 @@ async def run_summariser(
     prompt = "\n".join(prompt_parts)
 
     client = _get_client()
-    response = await client.messages.create(
-        model=os.environ.get("SUMMARISER_LLM", "claude-haiku-4-5-20251001"),
+    response = await client.chat.completions.create(
+        model=os.environ.get("SUMMARISER_LLM", "gpt-4o-mini"),
         max_tokens=1500,
         messages=[{"role": "user", "content": prompt}],
     )
 
-    return response.content[0].text
+    return response.choices[0].message.content
