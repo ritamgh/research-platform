@@ -1,103 +1,35 @@
-"""Web research A2A agent server — FastAPI + a2a-sdk."""
-import json
+"""Web research A2A agent server — Google ADK."""
 import os
-from pathlib import Path
 
 import uvicorn
-from a2a.server.agent_execution import AgentExecutor, RequestContext
-from a2a.server.apps import A2AFastAPIApplication
-from a2a.server.events import EventQueue
-from a2a.server.request_handlers import DefaultRequestHandler
-from a2a.server.tasks import InMemoryTaskStore, TaskUpdater
-from a2a.types import AgentCapabilities, AgentCard, AgentSkill, Part, TextPart
-from a2a.utils import new_agent_text_message, new_task
 from dotenv import load_dotenv
+from google.adk.a2a.utils.agent_to_a2a import to_a2a
+from google.adk.agents import Agent
+from google.adk.models.lite_llm import LiteLlm
+from google.adk.tools import FunctionTool
 
 from agents.web_research.agent import run_web_research
 
 load_dotenv()
 
-_CARD_PATH = Path(__file__).parent / "agent_card.json"
+_PORT = int(os.environ.get("WEB_RESEARCH_PORT", 8001))
+_HOST = os.environ.get("WEB_RESEARCH_HOST", "localhost")
 
 
-def _load_card() -> AgentCard:
-    raw = json.loads(_CARD_PATH.read_text())
-    url = os.environ.get("WEB_RESEARCH_AGENT_URL", raw["url"])
-    return AgentCard(
-        name=raw["name"],
-        description=raw["description"],
-        version=raw["version"],
-        url=f"{url}/",
-        capabilities=AgentCapabilities(
-            streaming=raw["capabilities"]["streaming"],
-            push_notifications=raw["capabilities"]["push_notifications"],
-        ),
-        skills=[
-            AgentSkill(
-                id=s["id"],
-                name=s["name"],
-                description=s["description"],
-                tags=s.get("tags", []),
-                examples=s.get("examples", []),
-            )
-            for s in raw["skills"]
-        ],
-        default_input_modes=raw.get("default_input_modes", ["text/plain"]),
-        default_output_modes=raw.get("default_output_modes", ["text/plain"]),
-    )
+async def search_web(query: str) -> str:
+    """Search the web for recent information about the given query."""
+    return await run_web_research(query)
 
 
-class WebResearchAgentExecutor(AgentExecutor):
-    async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
-        task = context.current_task or new_task(context.message)
-        updater = TaskUpdater(event_queue, task.id, task.context_id)
+agent = Agent(
+    name="web_research",
+    model=LiteLlm(model=f"openai/{os.environ.get('ROUTER_MODEL', 'gpt-4o-mini')}"),
+    instruction="Call the search_web tool with the user's query and return the result verbatim.",
+    description="Searches the web for recent information on a given topic.",
+    tools=[FunctionTool(search_web)],
+)
 
-        await updater.submit()
-        await updater.start_work()
-
-        try:
-            # Extract query text from the incoming message
-            query = ""
-            if context.message and context.message.parts:
-                query = context.message.parts[0].root.text
-
-            if not query:
-                raise ValueError("No query provided in task message")
-
-            result_text = await run_web_research(query)
-
-            await updater.add_artifact(
-                [Part(root=TextPart(text=result_text))]
-            )
-            await updater.complete()
-        except Exception as exc:
-            error_msg = new_agent_text_message(
-                f"Web research failed: {exc}", task.context_id, task.id
-            )
-            await updater.failed(error_msg)
-
-    async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
-        if context.current_task:
-            updater = TaskUpdater(
-                event_queue,
-                context.current_task.id,
-                context.current_task.context_id,
-            )
-            await updater.cancel()
-
-
-def build_app():
-    agent_card = _load_card()
-    task_store = InMemoryTaskStore()
-    executor = WebResearchAgentExecutor()
-    handler = DefaultRequestHandler(
-        agent_executor=executor, task_store=task_store
-    )
-    return A2AFastAPIApplication(agent_card=agent_card, http_handler=handler).build()
-
-
-app = build_app()
+app = to_a2a(agent, host=_HOST, port=_PORT)
 
 if __name__ == "__main__":
-    port = int(os.environ.get("WEB_RESEARCH_PORT", 8001))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run(app, host="0.0.0.0", port=_PORT)
