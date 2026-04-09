@@ -29,6 +29,7 @@ def _get_runner() -> Runner:
         coordinator = build_coordinator(_config)
         _session_service = InMemorySessionService()
         _runner = Runner(
+            app_name=_APP_NAME,
             agent=coordinator,
             session_service=_session_service,
         )
@@ -74,7 +75,7 @@ async def research(request: ResearchRequest) -> ResearchResponse:
         user_id = "research-user"
         session_id = str(uuid.uuid4())
 
-        _session_service.create_session(
+        await _session_service.create_session(
             app_name=_APP_NAME,
             user_id=user_id,
             session_id=session_id,

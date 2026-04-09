@@ -2,8 +2,8 @@
 import os
 from fastmcp import Client
 
-VECTOR_DB_MCP_URL = os.environ.get("VECTOR_DB_MCP_URL", "http://localhost:9002")
-FILE_READER_MCP_URL = os.environ.get("FILE_READER_MCP_URL", "http://localhost:9003")
+VECTOR_DB_MCP_URL = os.environ.get("VECTOR_DB_MCP_URL", "http://localhost:9002/mcp")
+FILE_READER_MCP_URL = os.environ.get("FILE_READER_MCP_URL", "http://localhost:9003/mcp")
 
 
 async def search_documents(query: str, top_k: int = 5) -> str:
@@ -11,7 +11,7 @@ async def search_documents(query: str, top_k: int = 5) -> str:
     async with Client(VECTOR_DB_MCP_URL) as client:
         result = await client.call_tool(
             "search_documents",
-            {"query": query, "top_k": top_k},
+            {"query": query, "num_results": top_k},
         )
         return result.content[0].text
 

@@ -2,7 +2,7 @@
 import os
 from fastmcp import Client
 
-WEB_SEARCH_MCP_URL = os.environ.get("WEB_SEARCH_MCP_URL", "http://localhost:9001")
+WEB_SEARCH_MCP_URL = os.environ.get("WEB_SEARCH_MCP_URL", "http://localhost:9001/mcp")
 
 
 async def search_web(query: str, num_results: int = 5) -> str:

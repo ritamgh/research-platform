@@ -72,7 +72,7 @@ class TestResearchEndpoint:
         mock_runner.run_async = _fake_run_async
 
         mock_session_service = MagicMock()
-        mock_session_service.create_session = MagicMock()
+        mock_session_service.create_session = AsyncMock()
 
         with patch("orchestrator.main._get_runner", return_value=mock_runner), \
              patch("orchestrator.main._session_service", mock_session_service):
@@ -86,9 +86,6 @@ class TestResearchEndpoint:
         assert "retrieved_context" in data
 
     def test_runner_exception_returns_500(self, client):
-        def _raise():
-            raise RuntimeError("boom")
-
         async def _fake_run_async(**kwargs):
             raise RuntimeError("boom")
             yield  # make it an async generator
@@ -97,7 +94,7 @@ class TestResearchEndpoint:
         mock_runner.run_async = _fake_run_async
 
         mock_session_service = MagicMock()
-        mock_session_service.create_session = MagicMock()
+        mock_session_service.create_session = AsyncMock()
 
         with patch("orchestrator.main._get_runner", return_value=mock_runner), \
              patch("orchestrator.main._session_service", mock_session_service):

@@ -2,7 +2,7 @@
 import os
 from fastmcp import Client
 
-CITATION_CHECKER_MCP_URL = os.environ.get("CITATION_CHECKER_MCP_URL", "http://localhost:9004")
+CITATION_CHECKER_MCP_URL = os.environ.get("CITATION_CHECKER_MCP_URL", "http://localhost:9004/mcp")
 
 
 async def check_credibility(url: str) -> str:
