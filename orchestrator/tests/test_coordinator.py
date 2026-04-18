@@ -74,8 +74,12 @@ class TestResearchEndpoint:
         mock_session_service = MagicMock()
         mock_session_service.create_session = AsyncMock()
 
+        mock_config = MagicMock()
+        mock_config.a2a_timeout = 30.0
+
         with patch("orchestrator.main._get_runner", return_value=mock_runner), \
-             patch("orchestrator.main._session_service", mock_session_service):
+             patch("orchestrator.main._session_service", mock_session_service), \
+             patch("orchestrator.main._config", mock_config):
             response = client.post("/research", json={"query": "What is RAG?"})
 
         assert response.status_code == 200
@@ -96,9 +100,37 @@ class TestResearchEndpoint:
         mock_session_service = MagicMock()
         mock_session_service.create_session = AsyncMock()
 
+        mock_config = MagicMock()
+        mock_config.a2a_timeout = 30.0
+
         with patch("orchestrator.main._get_runner", return_value=mock_runner), \
-             patch("orchestrator.main._session_service", mock_session_service):
+             patch("orchestrator.main._session_service", mock_session_service), \
+             patch("orchestrator.main._config", mock_config):
             response = client.post("/research", json={"query": "trigger error"})
 
         assert response.status_code == 500
         assert response.json()["detail"] == "Internal research error"
+
+    def test_timeout_returns_504(self, client):
+        import asyncio
+
+        async def _slow_run_async(**kwargs):
+            await asyncio.sleep(10)
+            yield  # never reached
+
+        mock_runner = MagicMock()
+        mock_runner.run_async = _slow_run_async
+
+        mock_session_service = MagicMock()
+        mock_session_service.create_session = AsyncMock()
+
+        mock_config = MagicMock()
+        mock_config.a2a_timeout = 0.05  # 50ms — triggers timeout immediately
+
+        with patch("orchestrator.main._get_runner", return_value=mock_runner), \
+             patch("orchestrator.main._session_service", mock_session_service), \
+             patch("orchestrator.main._config", mock_config):
+            response = client.post("/research", json={"query": "slow query"})
+
+        assert response.status_code == 504
+        assert response.json()["detail"] == "Research timed out"

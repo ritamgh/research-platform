@@ -24,7 +24,11 @@ async def lookup_documents(query: str) -> str:
 agent = Agent(
     name="rag_lookup",
     model=LiteLlm(model=f"openai/{os.environ.get('ROUTER_MODEL', 'gpt-4o-mini')}"),
-    instruction="Call the lookup_documents tool with the user's query and return the result verbatim.",
+    instruction=(
+        "Call the lookup_documents tool with the user's query. "
+        "Return the tool result verbatim — do not paraphrase or omit any part. "
+        "You MUST include the <rag_sources>...</rag_sources> tag exactly as it appears in the tool output."
+    ),
     description="Searches the local document corpus for information on a given topic.",
     tools=[FunctionTool(lookup_documents)],
 )

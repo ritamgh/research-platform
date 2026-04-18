@@ -1,0 +1,107 @@
+services:
+
+  # ─── Infrastructure ──────────────────────────────────────────────────────────
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+  # ─── MCP Tool Servers (ports 9001-9004) ──────────────────────────────────────
+
+  mcp-web-search:
+    build:
+      context: .
+      dockerfile: mcp_tools/web_search/Dockerfile   # to be added
+    ports:
+      - "9001:9001"
+    env_file: .env
+
+  mcp-vector-db:
+    build:
+      context: .
+      dockerfile: mcp_tools/vector_db/Dockerfile    # to be added
+    ports:
+      - "9002:9002"
+    env_file: .env
+    depends_on:
+      - qdrant
+
+  mcp-file-reader:
+    build:
+      context: .
+      dockerfile: mcp_tools/file_reader/Dockerfile  # to be added
+    ports:
+      - "9003:9003"
+    env_file: .env
+
+  mcp-citation-checker:
+    build:
+      context: .
+      dockerfile: mcp_tools/citation_checker/Dockerfile  # to be added
+    ports:
+      - "9004:9004"
+    env_file: .env
+
+  # ─── A2A Agent Servers (ports 8001-8003) ─────────────────────────────────────
+
+  agent-web-research:
+    build:
+      context: .
+      dockerfile: agents/web_research/Dockerfile    # to be added
+    ports:
+      - "8001:8001"
+    env_file: .env
+    depends_on:
+      - mcp-web-search
+
+  agent-rag:
+    build:
+      context: .
+      dockerfile: agents/rag/Dockerfile             # to be added
+    ports:
+      - "8002:8002"
+    env_file: .env
+    depends_on:
+      - mcp-vector-db
+      - mcp-file-reader
+
+  agent-summariser:
+    build:
+      context: .
+      dockerfile: agents/summariser/Dockerfile      # to be added
+    ports:
+      - "8003:8003"
+    env_file: .env
+    depends_on:
+      - mcp-citation-checker
+
+  # ─── Orchestrator (port 8000) ─────────────────────────────────────────────────
+
+  orchestrator:
+    build:
+      context: .
+      dockerfile: orchestrator/Dockerfile           # to be added
+    ports:
+      - "8000:8000"
+    env_file: .env
+    depends_on:
+      - agent-web-research
+      - agent-rag
+      - agent-summariser
+
+  # ─── Frontend (port 5173 dev / 80 prod) ──────────────────────────────────────
+
+  frontend:
+    build:
+      context: frontend
+      dockerfile: Dockerfile                        # to be added
+    ports:
+      - "80:80"
+    depends_on:
+      - orchestrator
+
+volumes:
+  qdrant_data:

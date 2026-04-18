@@ -98,4 +98,4 @@ async def run_summariser(
         messages=[{"role": "user", "content": prompt}],
     )
 
-    return response.choices[0].message.content
+    return response.choices[0].message.content or ""

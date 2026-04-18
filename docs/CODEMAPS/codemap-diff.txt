@@ -1,0 +1,143 @@
+CODEMAP UPDATE SUMMARY: Week 4+5 (2026-04-11)
+============================================
+
+OVERVIEW
+--------
+Codemaps updated to reflect:
+  - Week 4: ADK migration from LangGraph (deleted ~1100 LOC)
+  - Week 5: New evals/ package for LangSmith evaluation
+
+No changes to MCP tool layer (web_search, vector_db, file_reader, citation_checker).
+
+ARCHITECTURE.MD CHANGES
+-----------------------
+ADDED:
+  + System overview now includes evals/ pipeline in diagram
+  + New Components row: Evals (LangSmith evaluation)
+  + Key Design Decisions (Week 4+5) section with:
+    - ADK-based multi-agent routing
+    - to_a2a() wrapper pattern for A2A protocol
+    - InMemorySessionService with cleanup
+    - LangSmith evals (faithfulness, relevance, citation_accuracy)
+    - Structured synthesis format (QUERY/WEB_FINDINGS/RAG_FINDINGS)
+  + Request Flow updated to show session cleanup + eval pipeline
+  + Key Files Structure section with evals/ layout:
+    - evals/run_evals.py (main eval orchestrator)
+    - evals/evaluators/ (3 evaluators + shared judge)
+    - evals/dataset_loader.py + report.py
+
+MODIFIED:
+  ~ "System Overview" description expanded to mention LangSmith evals
+  ~ "Key Design Decisions" reframed from "Week 4" to "Week 4+5"
+  ~ "Testing" section now includes evals/tests/
+
+DEPENDENCIES.MD CHANGES
+-----------------------
+ADDED:
+  + "External Services & APIs" now lists LangSmith (tracing, dataset, evals)
+  + "Core Stack" now includes langsmith library
+  + New "Evals Stack" section with:
+    - langsmith, openai, httpx, python-dotenv
+    - Key entry point: evals/run_evals.py
+    - Key modules: _client.py, dataset_loader.py, evaluators/*, report.py
+    - Description of judge() function and report tool
+  + Environment Variables section now includes:
+    - Evals subsection: LANGSMITH_API_KEY, OPENAI_API_KEY, --base-url flag
+  + Breaking Changes table now shows Week 5 column:
+    - Eval pipeline: None (Week 3+4) → LangSmith (Week 5)
+
+MODIFIED:
+  ~ "External Services & APIs" OpenAI row now mentions evals judge + embeddings
+  ~ "Core Stack" entries expanded with langsmith
+  ~ "Orchestrator Stack" section now notes langsmith is optional but evals requires it
+
+MCP_TOOLS.MD CHANGES
+--------------------
+NO CHANGES to content (tools are unchanged from Week 3).
+
+MODIFIED (formatting only):
+  ~ Updated header comment: "2026-04-11 | Week 4+5 complete"
+  ~ Updated opening paragraph: "No changes from Week 3 → Week 4+5"
+
+FILE STRUCTURE (NEW)
+-------------------
+docs/CODEMAPS/
+├── architecture.md    [UPDATED] Added evals pipeline, structured synthesis format
+├── dependencies.md    [UPDATED] Added evals stack, LangSmith integration
+├── mcp_tools.md       [UNCHANGED] Tools remain stable
+└── codemap-diff.txt   [NEW] This file
+
+KEY ADDITIONS (Week 5)
+---------------------
+evals/ package structure:
+  evals/
+  ├── run_evals.py              Main eval orchestrator (257 lines)
+  ├── dataset_loader.py          Dataset CRUD (47 lines)
+  ├── report.py                  Experiment comparison (99 lines)
+  ├── _client.py                 HTTP client to orchestrator
+  ├── dataset.json               25 Q&A pairs with route_type and required_topics
+  └── evaluators/
+      ├── faithfulness.py        Judge: answer grounded in context?
+      ├── relevance.py           Judge: answer addresses query + topics?
+      ├── citation_accuracy.py   Pattern + judge: sources cited?
+      └── _judge.py              Shared judge() function (OpenAI gpt-4)
+
+KEY REMOVALS (Week 4)
+---------------------
+Deleted from Week 3 → Week 4:
+  - orchestrator/graph.py              (~250 LOC)
+  - orchestrator/state.py              (~100 LOC)
+  - orchestrator/a2a_client.py         (~150 LOC)
+  - orchestrator/nodes/               (~600+ LOC)
+  - agents/*/a2a_wrapper.py            (~100+ LOC)
+
+Replaced with:
+  - orchestrator/coordinator.py        (55 LOC, build_coordinator)
+  - google.adk.a2a.utils.agent_to_a2a  (to_a2a wrapper, built-in)
+
+BACKWARD COMPATIBILITY
+----------------------
+BREAKING:
+  - Routing logic changed from hardcoded LangGraph nodes to LLM-driven
+  - Session management moved from manual to ADK InMemorySessionService
+  - Agent initialization changed to ADK Agent + to_a2a() pattern
+
+NON-BREAKING:
+  - MCP tool APIs unchanged
+  - A2A protocol unchanged (JSON-RPC 2.0)
+  - Environment variables mostly same (added A2A_TIMEOUT)
+  - POST /research endpoint response schema unchanged
+
+NEW ENVIRONMENT VARIABLES
+-------------------------
+Week 4:
+  - A2A_TIMEOUT (30.0 seconds)
+
+Week 5:
+  - None (evals uses existing LANGSMITH_API_KEY, OPENAI_API_KEY)
+
+SUMMARY STATISTICS
+------------------
+Lines of code deleted (Week 4):  ~1100 LOC (graph.py, state.py, nodes/, a2a_client.py)
+Lines of code added (Week 4):    ~200 LOC (coordinator.py, config.py updates)
+Lines of code added (Week 5):    ~500 LOC (evals/ package: run_evals, evaluators, report)
+
+Total MCP tool tests: 97 (unchanged from Week 3)
+New eval tests: ~20 (evals/tests/test_evaluators.py)
+
+CODEMAPS TOKEN COUNT
+--------------------
+architecture.md:  ~850 tokens (was ~500; +350 for evals, synthesis format)
+dependencies.md:  ~950 tokens (was ~600; +350 for evals stack, breaking changes)
+mcp_tools.md:     ~900 tokens (unchanged)
+Total:            ~2700 tokens (under 3000 limit)
+
+NEXT STEPS FOR DEVELOPERS
+--------------------------
+1. Start orchestrator: python -m orchestrator.main
+2. Start all agents: python -m agents.{web_research,rag,summariser}.main
+3. Start all MCP tools: python -m mcp_tools.{web_search,vector_db,file_reader,citation_checker}.main
+4. Run evals: python evals/run_evals.py [--limit 5]
+5. Compare experiments: python evals/report.py <exp_a> <exp_b>
+
+View LangSmith experiment results: https://smith.langchain.com

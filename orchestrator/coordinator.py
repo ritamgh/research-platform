@@ -10,14 +10,25 @@ from orchestrator.config import OrchestratorConfig
 # Suppress experimental warnings from RemoteA2aAgent / to_a2a
 warnings.filterwarnings("ignore", category=UserWarning, module="google.adk")
 
-COORDINATOR_INSTRUCTION = """You are a research coordinator. Given a research query, decide how to route it:
+COORDINATOR_INSTRUCTION = """You are a research coordinator. For EVERY query, follow these steps in order:
 
-- If the query asks about recent events, current news, or needs up-to-date information: delegate to web_research.
-- If the query is about internal documents, stored corpus, or specific organisational knowledge: delegate to rag_lookup.
-- If the query needs both web and corpus information: delegate to web_research first, then rag_lookup, then synthesise with summariser. Pass the query and findings as named arguments: query, web_findings, rag_findings.
+STEP 1 — Always delegate to rag_lookup first, no exceptions.
+
+STEP 2 — Read the confidence marker at the start of rag_lookup's response:
+  - [CONFIDENCE: HIGH]   → answer directly from the RAG result, do not do web search.
+  - [CONFIDENCE: MEDIUM] → also delegate to web_research, then combine both using the summariser.
+  - [CONFIDENCE: LOW]    → also delegate to web_research, then combine both using the summariser.
+
+STEP 3 — When delegating to the summariser, use EXACTLY this format:
+
+QUERY: <the original question>
+WEB_FINDINGS: <full text returned by web_research>
+RAG_FINDINGS: <full text returned by rag_lookup>
+
+- If rag_lookup errors, fall back to web_research only.
 - If the query is a simple factual question (math, definitions) that needs no research: answer directly.
-
-Always return a clear, cited answer to the user. Do not ask clarifying questions — do your best with the query as given.
+- Always strip the [CONFIDENCE: ...] marker before showing the final answer to the user.
+- Always return a clear, cited answer. Do not ask clarifying questions.
 """
 
 

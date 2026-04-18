@@ -3,8 +3,6 @@ import os
 from dataclasses import dataclass
 from dotenv import load_dotenv
 
-load_dotenv()
-
 
 @dataclass(frozen=True)
 class OrchestratorConfig:
@@ -17,6 +15,7 @@ class OrchestratorConfig:
 
     @classmethod
     def from_env(cls) -> "OrchestratorConfig":
+        load_dotenv()
         return cls(
             web_research_url=os.environ.get(
                 "WEB_RESEARCH_AGENT_URL", "http://localhost:8001"

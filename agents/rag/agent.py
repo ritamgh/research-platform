@@ -7,7 +7,7 @@ from llama_index.core import Settings
 from llama_index.core.llms import LLM
 from llama_index.llms.openai import OpenAI
 
-from agents.rag.mcp_client import search_documents, read_file
+from agents.rag.mcp_client import search_documents
 
 
 def _get_llm() -> LLM:
@@ -32,22 +32,39 @@ async def run_rag_lookup(
 
     # 2. Parse the results (vector_db returns JSON array of hits)
     try:
-        hits = json.loads(raw_results)
+        parsed = json.loads(raw_results)
+        hits = parsed.get("results", parsed) if isinstance(parsed, dict) else parsed
     except json.JSONDecodeError:
         hits = [{"content": raw_results, "source": "unknown"}]
 
     if not hits:
-        return "No relevant documents found in the corpus for this query."
+        return "[CONFIDENCE: LOW]\nNo relevant documents found in the corpus for this query.\n\n<rag_sources></rag_sources>"
 
-    # 3. Build a context string from the retrieved passages
+    # 3. Build context and compute confidence from Qdrant similarity scores
     context_parts = []
     sources = []
+    scores = []
     for hit in hits:
         content = hit.get("content", hit.get("text", ""))
-        source = hit.get("source", hit.get("id", "unknown"))
+        title = hit.get("title", "")
+        url = hit.get("url", hit.get("source", hit.get("id", "")))
+        source = f"{title} ({url})" if title and url else title or url or "unknown"
+        score = hit.get("score", 0.0)
         if content:
             context_parts.append(f"[Source: {source}]\n{content}")
             sources.append(source)
+            scores.append(score)
+
+    if not context_parts:
+        return "[CONFIDENCE: LOW]\nNo relevant content found in the corpus for this query.\n\n<rag_sources></rag_sources>"
+
+    avg_score = sum(scores) / len(scores) if scores else 0.0
+    if avg_score >= 0.75:
+        confidence = "HIGH"
+    elif avg_score >= 0.55:
+        confidence = "MEDIUM"
+    else:
+        confidence = "LOW"
 
     context = "\n\n---\n\n".join(context_parts)
 
@@ -68,8 +85,7 @@ async def run_rag_lookup(
     response = await llm.acomplete(prompt)
     answer_text = str(response)
 
-    # Append source list
-    if sources:
-        answer_text += f"\n\nSources consulted: {', '.join(set(sources))}"
+    unique_sources = list(dict.fromkeys(sources))
+    sources_tag = f"<rag_sources>{' | '.join(unique_sources)}</rag_sources>"
 
-    return answer_text
+    return f"[CONFIDENCE: {confidence}]\n{answer_text}\n\n{sources_tag}"
