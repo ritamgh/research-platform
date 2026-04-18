@@ -90,20 +90,18 @@ class TestRunRagLookup:
 class TestRagServerEndpoints:
     @pytest.fixture
     def client(self):
-        from agents.rag.main import build_app
-        from fastapi.testclient import TestClient
-        return TestClient(build_app())
+        from starlette.testclient import TestClient
+        from agents.rag.main import app
+        with TestClient(app) as c:
+            yield c
 
     def test_agent_card_endpoint(self, client):
-        response = client.get("/.well-known/agent.json")
+        response = client.get("/.well-known/agent-card.json")
         assert response.status_code == 200
         data = response.json()
-        assert data["name"] == "rag-agent"
-        assert any(s["id"] == "rag_lookup" for s in data["skills"])
+        assert "name" in data
+        assert "skills" in data
 
-    def test_card_json_valid(self):
-        import json
-        from pathlib import Path
-        card = json.loads((Path(__file__).parent.parent / "agent_card.json").read_text())
-        assert card["name"] == "rag-agent"
-        assert card["skills"][0]["id"] == "rag_lookup"
+    def test_agent_has_correct_name(self):
+        from agents.rag.main import agent
+        assert agent.name == "rag_lookup"

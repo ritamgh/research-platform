@@ -183,3 +183,45 @@ async def search_documents(
             for r in results
         ],
     })
+
+
+@mcp.tool
+async def list_documents(collection: str = "documents") -> str:
+    """List all unique documents ingested into a collection."""
+    if not collection or not collection.strip():
+        raise McpError(ErrorData(code=INVALID_PARAMS, message="collection must not be empty"))
+
+    qdrant = _get_qdrant_client()
+
+    if not await qdrant.collection_exists(collection):
+        return json.dumps({"collection": collection, "documents": []})
+
+    seen: dict[str, dict] = {}
+    offset = None
+    while True:
+        response, next_offset = await qdrant.scroll(
+            collection_name=collection,
+            limit=100,
+            offset=offset,
+            with_payload=True,
+            with_vectors=False,
+        )
+        for point in response:
+            doc_id = point.payload.get("document_id", "")
+            if doc_id and doc_id not in seen:
+                seen[doc_id] = {
+                    "document_id": doc_id,
+                    "title": point.payload.get("title", ""),
+                    "url": point.payload.get("url", ""),
+                    "chunk_count": 0,
+                }
+            if doc_id:
+                seen[doc_id]["chunk_count"] += 1
+        if next_offset is None:
+            break
+        offset = next_offset
+
+    return json.dumps({
+        "collection": collection,
+        "documents": list(seen.values()),
+    })

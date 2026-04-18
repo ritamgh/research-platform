@@ -1,103 +1,99 @@
-"""Web research A2A agent server — FastAPI + a2a-sdk."""
-import json
+"""Web research A2A agent server — direct passthrough, no LLM intermediary."""
+import logging
 import os
-from pathlib import Path
+import uuid
 
 import uvicorn
-from a2a.server.agent_execution import AgentExecutor, RequestContext
-from a2a.server.apps import A2AFastAPIApplication
-from a2a.server.events import EventQueue
-from a2a.server.request_handlers import DefaultRequestHandler
-from a2a.server.tasks import InMemoryTaskStore, TaskUpdater
-from a2a.types import AgentCapabilities, AgentCard, AgentSkill, Part, TextPart
-from a2a.utils import new_agent_text_message, new_task
 from dotenv import load_dotenv
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 
 from agents.web_research.agent import run_web_research
 
 load_dotenv()
 
-_CARD_PATH = Path(__file__).parent / "agent_card.json"
+logger = logging.getLogger(__name__)
+
+_PORT = int(os.environ.get("WEB_RESEARCH_PORT", 8001))
+_HOST = os.environ.get("WEB_RESEARCH_HOST", "localhost")
+
+_AGENT_CARD = {
+    "name": "web_research",
+    "description": "Searches the web for recent information on a given topic.",
+    "url": f"http://{_HOST}:{_PORT}",
+    "version": "0.0.1",
+    "protocolVersion": "0.3.0",
+    "preferredTransport": "JSONRPC",
+    "defaultInputModes": ["text/plain"],
+    "defaultOutputModes": ["text/plain"],
+    "capabilities": {},
+    "supportsAuthenticatedExtendedCard": False,
+    "skills": [
+        {
+            "id": "web_research",
+            "name": "web_research",
+            "description": "Search the web for recent information about the given query.",
+            "tags": ["llm", "tools"],
+            "examples": [],
+        }
+    ],
+}
+
+app = FastAPI(title="web_research A2A server")
 
 
-def _load_card() -> AgentCard:
-    raw = json.loads(_CARD_PATH.read_text())
-    url = os.environ.get("WEB_RESEARCH_AGENT_URL", raw["url"])
-    return AgentCard(
-        name=raw["name"],
-        description=raw["description"],
-        version=raw["version"],
-        url=f"{url}/",
-        capabilities=AgentCapabilities(
-            streaming=raw["capabilities"]["streaming"],
-            push_notifications=raw["capabilities"]["push_notifications"],
-        ),
-        skills=[
-            AgentSkill(
-                id=s["id"],
-                name=s["name"],
-                description=s["description"],
-                tags=s.get("tags", []),
-                examples=s.get("examples", []),
-            )
-            for s in raw["skills"]
-        ],
-        default_input_modes=raw.get("default_input_modes", ["text/plain"]),
-        default_output_modes=raw.get("default_output_modes", ["text/plain"]),
-    )
+@app.get("/.well-known/agent-card.json")
+async def agent_card() -> dict:
+    return _AGENT_CARD
 
 
-class WebResearchAgentExecutor(AgentExecutor):
-    async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
-        task = context.current_task or new_task(context.message)
-        updater = TaskUpdater(event_queue, task.id, task.context_id)
+@app.post("/")
+async def handle_jsonrpc(request: Request) -> JSONResponse:
+    body = await request.json()
+    rpc_id = body.get("id", 1)
+    method = body.get("method", "")
 
-        await updater.submit()
-        await updater.start_work()
+    if method != "message/send":
+        return JSONResponse({
+            "jsonrpc": "2.0",
+            "id": rpc_id,
+            "error": {"code": -32601, "message": f"Method not found: {method}"},
+        })
 
-        try:
-            # Extract query text from the incoming message
-            query = ""
-            if context.message and context.message.parts:
-                query = context.message.parts[0].root.text
+    try:
+        parts = body["params"]["message"]["parts"]
+        query = next(p["text"] for p in parts if p.get("kind") == "text")
+    except (KeyError, StopIteration, TypeError):
+        return JSONResponse({
+            "jsonrpc": "2.0",
+            "id": rpc_id,
+            "error": {"code": -32600, "message": "Invalid request: missing query text"},
+        })
 
-            if not query:
-                raise ValueError("No query provided in task message")
+    logger.info("web_research query=%r", query[:80])
+    result = await run_web_research(query)
 
-            result_text = await run_web_research(query)
+    context_id = str(uuid.uuid4())
+    task_id = str(uuid.uuid4())
+    return JSONResponse({
+        "jsonrpc": "2.0",
+        "id": rpc_id,
+        "result": {
+            "kind": "task",
+            "id": task_id,
+            "contextId": context_id,
+            "artifacts": [
+                {
+                    "artifactId": str(uuid.uuid4()),
+                    "parts": [{"kind": "text", "text": result}],
+                }
+            ],
+            "history": [],
+            "metadata": {},
+            "status": {"state": "completed"},
+        },
+    })
 
-            await updater.add_artifact(
-                [Part(root=TextPart(text=result_text))]
-            )
-            await updater.complete()
-        except Exception as exc:
-            error_msg = new_agent_text_message(
-                f"Web research failed: {exc}", task.context_id, task.id
-            )
-            await updater.failed(error_msg)
-
-    async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
-        if context.current_task:
-            updater = TaskUpdater(
-                event_queue,
-                context.current_task.id,
-                context.current_task.context_id,
-            )
-            await updater.cancel()
-
-
-def build_app():
-    agent_card = _load_card()
-    task_store = InMemoryTaskStore()
-    executor = WebResearchAgentExecutor()
-    handler = DefaultRequestHandler(
-        agent_executor=executor, task_store=task_store
-    )
-    return A2AFastAPIApplication(agent_card=agent_card, http_handler=handler).build()
-
-
-app = build_app()
 
 if __name__ == "__main__":
-    port = int(os.environ.get("WEB_RESEARCH_PORT", 8001))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run(app, host="0.0.0.0", port=_PORT)
