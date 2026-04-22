@@ -8,44 +8,35 @@ A user asks a research question. The orchestrator routes it through a RAG agent 
 
 ## Architecture
 
-```
-User Query
-    │
-    ▼
-┌─────────────────────────────────────────────┐
-│   Orchestrator  (Google ADK + FastAPI)       │
-│   Confidence-gated routing via ADK coordinator│
-│   POST /research  :8000                      │
-└──────────┬───────────────────┬──────────────┘
-           │  A2A protocol     │
-           ▼                   ▼
-┌──────────────────┐  ┌──────────────────────┐
-│   RAG Agent      │  │  Web Research Agent  │
-│   LlamaIndex     │  │  CrewAI              │
-│   :8002          │  │  :8001               │
-└────────┬─────────┘  └──────────┬───────────┘
-         │ MCP                   │ MCP
-         ▼                       ▼
-  ┌─────────────┐        ┌──────────────┐
-  │  vector_db  │        │  web_search  │
-  │  :9002      │        │  :9001       │
-  └─────────────┘        └──────────────┘
-           │
-           ▼
-┌──────────────────────┐
-│   Summariser Agent   │
-│   OpenAI SDK         │
-│   :8003              │
-└──────────┬───────────┘
-           │ MCP
-           ▼
-  ┌──────────────────┐
-  │ citation_checker │
-  │ :9004            │
-  └──────────────────┘
-           │
-           ▼
-  LangSmith (distributed traces)
+```mermaid
+flowchart TD
+    U([User Query]) --> O
+
+    O["🎯 Orchestrator\nGoogle ADK + FastAPI\n:8000"]
+
+    O -->|A2A| R["📚 RAG Agent\nLlamaIndex · :8002"]
+    O -->|A2A - if MEDIUM/LOW confidence| W["🌐 Web Research Agent\nCrewAI · :8001"]
+    O -->|A2A| S["✍️ Summariser Agent\nOpenAI SDK · :8003"]
+
+    R -->|MCP| VDB["vector_db\n:9002"]
+    R -->|MCP| FR["file_reader\n:9003"]
+    W -->|MCP| WS["web_search\n:9001"]
+    S -->|MCP| CC["citation_checker\n:9004"]
+
+    O -.->|traces| LS[("LangSmith")]
+    R -.->|traces| LS
+    W -.->|traces| LS
+    S -.->|traces| LS
+
+    style O fill:#4f46e5,color:#fff
+    style R fill:#0891b2,color:#fff
+    style W fill:#0891b2,color:#fff
+    style S fill:#0891b2,color:#fff
+    style VDB fill:#475569,color:#fff
+    style FR fill:#475569,color:#fff
+    style WS fill:#475569,color:#fff
+    style CC fill:#475569,color:#fff
+    style LS fill:#f59e0b,color:#000
 ```
 
 ### Routing logic
