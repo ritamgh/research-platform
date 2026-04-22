@@ -1,6 +1,7 @@
 """MCP client for the web_search tool server (port 9001)."""
 import os
 from fastmcp import Client
+from langsmith import traceable
 
 WEB_SEARCH_MCP_URL = os.environ.get("WEB_SEARCH_MCP_URL", "http://localhost:9001/mcp")
 
@@ -15,6 +16,7 @@ def _get_client() -> Client:
     return _client
 
 
+@traceable(name="mcp_search_web", run_type="tool")
 async def search_web(query: str, num_results: int = 5) -> str:
     """Call the web_search MCP tool and return results as a string."""
     async with _get_client() as client:

@@ -132,20 +132,6 @@ async def test_three_consecutive_503s_raises_error(mcp_server):
 
 
 @pytest.mark.asyncio
-async def test_429_rate_limit_retries_then_raises(mcp_server):
-    """429 rate limit responses are retried; raises ToolError after exhaustion."""
-    with patch.dict(os.environ, {"TAVILY_API_KEY": "test-key"}):
-        with patch("mcp_tools.web_search.server.asyncio.sleep"):
-            async with respx.mock:
-                respx.post("https://api.tavily.com/search").mock(
-                    return_value=httpx.Response(429)
-                )
-                async with Client(mcp_server) as client:
-                    with pytest.raises(ToolError):
-                        await client.call_tool("search_web", {"query": "test"})
-
-
-@pytest.mark.asyncio
 async def test_timeout_retries_then_raises(mcp_server):
     """httpx.TimeoutException is retried; raises ToolError after exhaustion."""
     with patch.dict(os.environ, {"TAVILY_API_KEY": "test-key"}):

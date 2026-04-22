@@ -1,79 +1,36 @@
-Codemap Update Report
-Generated: 2026-03-22
-Previous update: 2026-03-21
+Codemap Diff Report — 2026-04-19
+Previous scan: 2026-04-18 (1 day ago)
+Files scanned: 87 (main branch only)
 
-=== New Tools Added ===
-citation_checker (port 9004) — now complete and fully documented.
-Provides two tools: check_credibility (offline domain/TLD heuristics) and
-check_reachability (HTTP HEAD + latency measurement).
+=== Architecture Changes ===
 
-=== Changes Since Last Update ===
+MERGED: week4-adk → main
+  - System is now single-branch; LangGraph orchestrator superseded by Google ADK
+  - LangGraph files (graph.py, nodes/router.py, nodes/delegate.py, nodes/synthesize.py,
+    state.py, a2a_client.py) removed from orchestrator/ by merge
+  - orchestrator/nodes/ directory now contains only __pycache__
 
-mcp_tools/file_reader — two fixes landed in commit 121e517:
+NEW: LangSmith runtime tracing (all services)
+  + orchestrator/main.py — @traceable on _run_research (research_pipeline) + _collect_events (adk_coordinator)
+  + agents/rag/agent.py — @traceable on run_rag_lookup; metadata: confidence, avg_score, num_chunks
+  + agents/web_research/agent.py — @traceable on run_web_research
+  + agents/summariser/agent.py — @traceable on run_summariser; wrap_openai(AsyncOpenAI) for child LLM spans
+  + agents/web_research/mcp_client.py — @traceable(run_type="tool") on search_web
+  + agents/rag/mcp_client.py — @traceable on search_documents, read_file
+  + agents/summariser/mcp_client.py — @traceable on check_credibility, check_reachability
 
-1. Path allowlist added (_check_path_allowed)
-   - New env var: FILE_READER_BASE_DIR (optional)
-   - When set, local path access is restricted to that subtree
-   - Raises INVALID_PARAMS on directory traversal attempts
-   - Documented in mcp_tools.md and dependencies.md
+CHANGED: LangSmith project name
+  - Was: "research-platform" (default)
+  + Now: "research-app" (matches .env LANGSMITH_PROJECT)
 
-2. Explicit fitz.Document.close() in finally block
-   - Prevents file descriptor leak on large or malformed PDFs
-   - No API change; internal resource management only
+=== Codemaps Updated ===
 
-3. Server now binds to host="0.0.0.0" (previously default / localhost)
-   - Noted in architecture.md and mcp_tools.md
-   - Relevant for container / proxy deployments
+  ~ .context/CODEMAPS/architecture.md — single-branch, LangSmith trace diagram added (~40% change)
+  ~ .context/CODEMAPS/backend.md      — LangGraph section removed, LangSmith hierarchy added (~50% change)
+  ~ .context/CODEMAPS/dependencies.md — LangSmith scope expanded to all agents, env vars updated (~25% change)
+  = .context/CODEMAPS/frontend.md     — no changes (still accurate)
+  = .context/CODEMAPS/mcp_tools.md    — no changes (still accurate)
 
-dependencies.md:
-- Added file_reader requirements block (fastmcp, pymupdf, httpx, python-dotenv,
-  pytest, pytest-asyncio, respx)
-- Corrected openai pin to >=1.0 (was >=1.30, which does not match requirements.txt)
+=== Staleness Warnings ===
 
-architecture.md:
-- Updated "Build Status" heading to clarify Week 1 is complete
-
-=== Current Tool Status ===
-  web_search       ✅ Built (port 9001)
-  vector_db        ✅ Built (port 9002)
-  file_reader      ✅ Built (port 9003)
-  citation_checker ✅ Built (port 9004)
-
-=== Files Updated in This Codemap Scan ===
-
-1. docs/CODEMAPS/architecture.md
-   - Build Status: citation_checker ⬜ Planned → ✅ Built
-   - Narrative: "All three Week 1 tools..." → "All four Week 1 tools..."
-   - Added: citation_checker capability summary
-   - File stats updated (files scanned 12 → 15, tokens ~380 → ~420)
-
-2. docs/CODEMAPS/mcp_tools.md
-   - Replaced placeholder citation_checker section with full spec
-   - Added ASCII tree of check_credibility logic (tier-based domain/TLD scoring)
-   - Added ASCII tree of check_reachability logic (HTTP HEAD + latency)
-   - Added response shape examples for both tools
-   - Key files summary: ~121 lines server.py, 27 unit tests, 1 integration test
-   - Env vars: None required
-   - File stats updated (files scanned 12 → 15, tokens ~480 → ~620)
-
-3. docs/CODEMAPS/dependencies.md
-   - Added: citation_checker requirements.txt block
-     * fastmcp>=2.0, httpx>=0.27, python-dotenv>=1.0
-     * pytest>=8.0, pytest-asyncio>=0.24, respx>=0.21
-   - Added: New "Shared Dependencies" section
-     * Clarifies which of 4 servers use httpx, respx, etc.
-     * No new external packages needed (httpx, respx already in use)
-   - File stats updated (files scanned 12 → 15, tokens ~320 → ~360)
-
-Citation Checker Implementation Details:
-- check_credibility: Offline scoring via domain set lookup (24 research/news domains,
-  8-item TLD score dict, 3 low-credibility domain host lists, URL shortener filter)
-  Returns: {url, score 0.0-0.9, label "high"|"medium"|"low", reason string}
-- check_reachability: HTTP HEAD request with follow_redirects=True, timeout=10s,
-  latency tracking via time.monotonic()
-  Returns: {url, reachable bool, status_code, latency_ms, final_url} (null if unreachable)
-- Server: FastMCP("citation-checker-tool"), runs on 0.0.0.0:9004
-- Tests: 27 unit tests + 1 live integration test (respx mocks httpx in unit suite)
-
-=== Week 2–4 Components (all still planned) ===
-  agents/web_research, agents/rag, agents/summariser, orchestrator, LangSmith evals
+  None — all codemaps updated within 1 day

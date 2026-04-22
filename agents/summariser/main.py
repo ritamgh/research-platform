@@ -1,5 +1,6 @@
 """Summariser A2A agent server — Google ADK."""
 import os
+from contextlib import nullcontext
 
 import uvicorn
 from dotenv import load_dotenv
@@ -7,8 +8,10 @@ from google.adk.a2a.utils.agent_to_a2a import to_a2a
 from google.adk.agents import Agent
 from google.adk.models.lite_llm import LiteLlm
 from google.adk.tools import FunctionTool
+from langsmith.run_helpers import tracing_context
 
 from agents.summariser.agent import run_summariser
+from common.tracing import extract_trace
 
 load_dotenv()
 
@@ -21,30 +24,29 @@ async def synthesise_findings(
     web_findings: str = "",
     rag_findings: str = "",
 ) -> str:
-    """Synthesise web and RAG findings into a final cited answer.
-
-    Args:
-        query: The original research question.
-        web_findings: Raw text from the web research agent (may be empty).
-        rag_findings: Raw text from the RAG lookup agent (may be empty).
-    """
-    return await run_summariser(
-        query=query,
-        web_findings=web_findings,
-        rag_findings=rag_findings,
-    )
+    """Synthesise web and RAG findings into a final cited answer."""
+    trace_headers, clean_query = extract_trace(query)
+    ctx = tracing_context(parent=trace_headers) if trace_headers else nullcontext()
+    with ctx:
+        return await run_summariser(
+            query=clean_query,
+            web_findings=web_findings,
+            rag_findings=rag_findings,
+        )
 
 
 agent = Agent(
     name="summariser",
-    model=LiteLlm(model=f"openai/{os.environ.get('ROUTER_MODEL', 'gpt-4o-mini')}"),
+    model=LiteLlm(model=f"openai/{os.environ.get('ROUTER_MODEL', 'gpt-5.4-mini')}"),
     instruction=(
+        "CRITICAL: The user message may start with a `__LST__...__LST__` system prefix. "
+        "You MUST include this prefix in the query parameter when calling synthesise_findings — do NOT strip it.\n\n"
         "You receive a message containing structured research data. "
         "Parse the following sections from the message:\n"
         "  QUERY: — the original research question\n"
         "  WEB_FINDINGS: — findings from web research (may be absent or NONE)\n"
         "  RAG_FINDINGS: — findings from document lookup (may be absent or NONE)\n"
-        "Call the synthesise_findings tool with query=<QUERY value>, "
+        "Call the synthesise_findings tool with query=<QUERY value including any __LST__ prefix>, "
         "web_findings=<WEB_FINDINGS value or empty string>, "
         "rag_findings=<RAG_FINDINGS value or empty string>. "
         "If the message does not contain these sections, treat the entire message as the query "

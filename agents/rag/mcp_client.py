@@ -1,6 +1,7 @@
 """MCP clients for vector_db (port 9002) and file_reader (port 9003) tool servers."""
 import os
 from fastmcp import Client
+from langsmith import traceable
 
 VECTOR_DB_MCP_URL = os.environ.get("VECTOR_DB_MCP_URL", "http://localhost:9002/mcp")
 FILE_READER_MCP_URL = os.environ.get("FILE_READER_MCP_URL", "http://localhost:9003/mcp")
@@ -24,6 +25,7 @@ def _get_file_reader_client() -> Client:
     return _file_reader_client
 
 
+@traceable(name="mcp_search_documents", run_type="tool")
 async def search_documents(query: str, top_k: int = 5) -> str:
     """Search the vector DB for documents relevant to the query."""
     async with _get_vector_db_client() as client:
@@ -34,6 +36,7 @@ async def search_documents(query: str, top_k: int = 5) -> str:
         return result.content[0].text
 
 
+@traceable(name="mcp_read_file", run_type="tool")
 async def read_file(source: str) -> str:
     """Read and parse a file (local path or URL) via the file_reader MCP."""
     async with _get_file_reader_client() as client:

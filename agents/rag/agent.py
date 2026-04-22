@@ -3,6 +3,7 @@ import json
 import os
 from typing import Callable, Awaitable
 
+from langsmith import traceable, get_current_run_tree
 from llama_index.core import Settings
 from llama_index.core.llms import LLM
 from llama_index.llms.openai import OpenAI
@@ -12,11 +13,12 @@ from agents.rag.mcp_client import search_documents
 
 def _get_llm() -> LLM:
     return OpenAI(
-        model=os.environ.get("RAG_LLM", "gpt-4o-mini"),
+        model=os.environ.get("RAG_LLM", "gpt-5.4-mini"),
         api_key=os.environ.get("OPENAI_API_KEY", ""),
     )
 
 
+@traceable(name="rag_lookup", run_type="chain", tags=["agent"])
 async def run_rag_lookup(
     query: str,
     search_fn: Callable[[str, int], Awaitable[str]] | None = None,
@@ -58,13 +60,25 @@ async def run_rag_lookup(
     if not context_parts:
         return "[CONFIDENCE: LOW]\nNo relevant content found in the corpus for this query.\n\n<rag_sources></rag_sources>"
 
-    avg_score = sum(scores) / len(scores) if scores else 0.0
-    if avg_score >= 0.75:
+    top_score = max(scores)
+    avg_score = sum(scores) / len(scores)
+    hybrid_score = 0.6 * top_score + 0.4 * avg_score
+    if hybrid_score >= 0.65:
         confidence = "HIGH"
-    elif avg_score >= 0.55:
+    elif hybrid_score >= 0.45:
         confidence = "MEDIUM"
     else:
         confidence = "LOW"
+
+    rt = get_current_run_tree()
+    if rt is not None:
+        rt.add_metadata({
+            "confidence": confidence,
+            "top_score": round(top_score, 4),
+            "avg_score": round(avg_score, 4),
+            "hybrid_score": round(hybrid_score, 4),
+            "num_chunks": len(context_parts),
+        })
 
     context = "\n\n---\n\n".join(context_parts)
 
@@ -86,6 +100,6 @@ async def run_rag_lookup(
     answer_text = str(response)
 
     unique_sources = list(dict.fromkeys(sources))
-    sources_tag = f"<rag_sources>{' | '.join(unique_sources)}</rag_sources>"
+    sources_tag = f'<rag_sources confidence="{confidence}">{" | ".join(unique_sources)}</rag_sources>'
 
     return f"[CONFIDENCE: {confidence}]\n{answer_text}\n\n{sources_tag}"

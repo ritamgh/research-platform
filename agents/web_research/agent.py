@@ -7,6 +7,7 @@ import re
 
 from crewai import Agent, Crew, Task
 from crewai.tools import tool as crewai_tool
+from langsmith import traceable
 
 from agents.web_research.mcp_client import search_web
 
@@ -88,6 +89,7 @@ def build_crew(search_fn=None) -> Crew:
     return Crew(agents=[researcher], tasks=[], verbose=False)
 
 
+@traceable(name="web_research", run_type="chain", tags=["agent"])
 async def run_web_research(query: str, search_fn=None) -> str:
     """Run web research for the given query and return findings as a string.
 

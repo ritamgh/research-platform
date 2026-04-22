@@ -26,9 +26,9 @@ class OrchestratorConfig:
             ),
             a2a_timeout=float(os.environ.get("A2A_TIMEOUT", "30.0")),
             router_model=os.environ.get(
-                "ROUTER_MODEL", "gpt-4o-mini"
+                "ROUTER_MODEL", "gpt-5.4"
             ),
             langsmith_project=os.environ.get(
-                "LANGSMITH_PROJECT", "research-platform"
+                "LANGSMITH_PROJECT", "research-app"
             ),
         )
