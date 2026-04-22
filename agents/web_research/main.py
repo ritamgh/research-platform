@@ -2,13 +2,17 @@
 import logging
 import os
 import uuid
+from contextlib import nullcontext
 
 import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from langsmith import traceable
+from langsmith.run_helpers import tracing_context
 
 from agents.web_research.agent import run_web_research
+from common.tracing import extract_trace
 
 load_dotenv()
 
@@ -71,7 +75,12 @@ async def handle_jsonrpc(request: Request) -> JSONResponse:
         })
 
     logger.info("web_research query=%r", query[:80])
-    result = await run_web_research(query)
+
+    # Extract LangSmith trace context so this run nests under the orchestrator trace.
+    trace_headers, clean_query = extract_trace(query)
+    ctx = tracing_context(parent=trace_headers) if trace_headers else nullcontext()
+    with ctx:
+        result = await run_web_research(clean_query)
 
     context_id = str(uuid.uuid4())
     task_id = str(uuid.uuid4())

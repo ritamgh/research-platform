@@ -1,6 +1,7 @@
 """MCP client for the citation_checker tool server (port 9004)."""
 import os
 from fastmcp import Client
+from langsmith import traceable
 
 CITATION_CHECKER_MCP_URL = os.environ.get("CITATION_CHECKER_MCP_URL", "http://localhost:9004/mcp")
 
@@ -15,6 +16,7 @@ def _get_client() -> Client:
     return _client
 
 
+@traceable(name="mcp_check_credibility", run_type="tool")
 async def check_credibility(url: str) -> str:
     """Check the credibility score of a URL via the citation_checker MCP."""
     async with _get_client() as client:
@@ -22,6 +24,7 @@ async def check_credibility(url: str) -> str:
         return result.content[0].text
 
 
+@traceable(name="mcp_check_reachability", run_type="tool")
 async def check_reachability(url: str) -> str:
     """Check whether a URL is reachable via the citation_checker MCP."""
     async with _get_client() as client:

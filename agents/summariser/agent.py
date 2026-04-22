@@ -1,23 +1,24 @@
 """Summariser agent using OpenAI SDK + citation_checker MCP tool."""
+import asyncio
 import json
 import os
 import re
 from typing import Callable, Awaitable
 
+from langsmith import traceable
+from langsmith.wrappers import wrap_openai
 from openai import AsyncOpenAI
 
 from agents.summariser.mcp_client import check_credibility
 
 
-_client = None
+_client: AsyncOpenAI | None = None
 
 
 def _get_client() -> AsyncOpenAI:
     global _client
     if _client is None:
-        _client = AsyncOpenAI(
-            api_key=os.environ.get("OPENAI_API_KEY", "")
-        )
+        _client = wrap_openai(AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY", "")))
     return _client
 
 
@@ -29,6 +30,7 @@ def _extract_urls(text: str) -> list[str]:
     return list(set(url_pattern.findall(text)))
 
 
+@traceable(name="summariser", run_type="chain", tags=["agent"])
 async def run_summariser(
     query: str,
     web_findings: str = "",
@@ -47,14 +49,16 @@ async def run_summariser(
     all_text = f"{web_findings}\n{rag_findings}"
     urls = _extract_urls(all_text)
 
-    # Check credibility of each URL (skip if no URLs found)
-    credibility_results: dict[str, dict] = {}
-    for url in urls[:10]:  # cap at 10 to avoid excessive MCP calls
+    # Check credibility of all URLs in parallel (cap at 10)
+    async def _check_one(url: str) -> tuple[str, dict]:
         try:
             raw = await _check(url)
-            credibility_results[url] = json.loads(raw)
+            return url, json.loads(raw)
         except Exception:
-            credibility_results[url] = {"credibility_score": 0.5, "tier": "unknown"}
+            return url, {"credibility_score": 0.5, "tier": "unknown"}
+
+    pairs = await asyncio.gather(*[_check_one(u) for u in urls[:10]])
+    credibility_results: dict[str, dict] = dict(pairs)
 
     # Build credibility context for the LLM
     cred_summary = ""
@@ -93,7 +97,7 @@ async def run_summariser(
 
     client = _get_client()
     response = await client.chat.completions.create(
-        model=os.environ.get("SUMMARISER_LLM", "gpt-4o-mini"),
+        model=os.environ.get("SUMMARISER_LLM", "gpt-5.4-mini"),
         max_tokens=1500,
         messages=[{"role": "user", "content": prompt}],
     )
